@@ -118,7 +118,8 @@ body {
 }
 
 .hero h1 {
-  font-size: clamp(2.3rem, 3.4vw, 3.7rem);
+  font-size: clamp(1.95rem, 7.2vw, 2.45rem);
+  line-height: 0.98;
 }
 
 .hero-text {
@@ -787,7 +788,8 @@ select[disabled] {
   }
 
   .hero h1 {
-    font-size: clamp(2rem, 10vw, 2.6rem);
+    font-size: clamp(1.7rem, 8vw, 2.1rem);
+    line-height: 1;
   }
 
   .page-links-inline {
