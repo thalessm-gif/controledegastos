@@ -7,34 +7,34 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="background-blur background-blur-left"></div>
-    <div class="background-blur background-blur-right"></div>
+    <div class="background-orb background-orb-left"></div>
+    <div class="background-orb background-orb-right"></div>
 
     <main class="page-shell">
       <header class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">Controle da casa</p>
-          <h1 id="householdTitle">Painel financeiro da casa</h1>
+          <p class="eyebrow">Casa de THALES e CÁTIA</p>
+          <h1>Controle da Casa</h1>
           <p class="hero-text">
-            Lance compras do dia a dia em segundos, separe os gastos por pessoa
-            e acompanhe o total da casa junto com parcelados em aberto.
+            Um painel mais pessoal para lançar compras rapidamente, entender o que
+            entra em cada fatura e acompanhar os gastos do mês com clareza.
           </p>
         </div>
 
         <div class="hero-actions">
           <label class="field-inline">
-            <span>Mês de referência</span>
+            <span>Mês em foco</span>
             <input id="selectedMonth" type="month" />
           </label>
-          <button id="syncNowButton" class="button button-secondary" type="button">
-            Sincronizar
+          <button id="syncButton" class="button button-secondary" type="button">
+            Sincronizar com Google Sheets
           </button>
         </div>
       </header>
 
       <section class="status-strip">
-        <div class="status-pill" id="dataModeBadge">Carregando dados...</div>
-        <div class="status-pill" id="syncStatus">Sincronização ainda não configurada.</div>
+        <div class="status-pill" id="statusBadge">Carregando painel...</div>
+        <div class="status-pill" id="syncStatus">Sincronização ainda não executada.</div>
       </section>
 
       <section class="stats-grid" id="statsGrid"></section>
@@ -43,34 +43,22 @@
         <section class="panel panel-wide">
           <div class="panel-head">
             <div>
-              <p class="panel-kicker">Entrada rápida</p>
-              <h2>Lançamentos</h2>
-            </div>
-
-            <div class="segmented-control">
-              <button
-                class="segment-button is-active"
-                type="button"
-                data-form-target="expense"
-              >
-                Gasto do mês
-              </button>
-              <button
-                class="segment-button"
-                type="button"
-                data-form-target="installment"
-              >
-                Compra parcelada
-              </button>
+              <p class="panel-kicker">Lançamento rápido</p>
+              <h2>Novo gasto</h2>
             </div>
           </div>
 
-          <form id="expenseForm" class="entry-form">
+          <form id="purchaseForm" class="entry-form">
             <input name="entryId" type="hidden" />
             <div class="form-grid">
               <label class="field">
-                <span>Descrição</span>
-                <input name="description" type="text" required maxlength="80" />
+                <span>Responsável</span>
+                <select name="responsible" id="responsibleSelect" required></select>
+              </label>
+
+              <label class="field">
+                <span>Data</span>
+                <input name="date" type="date" required />
               </label>
 
               <label class="field">
@@ -78,42 +66,21 @@
                 <input
                   name="amount"
                   type="number"
-                  step="0.01"
                   min="0.01"
+                  step="0.01"
                   inputmode="decimal"
                   required
                 />
               </label>
 
               <label class="field">
-                <span>Data da compra</span>
-                <input name="date" type="date" required />
-              </label>
-
-              <label class="field">
-                <span>Mês que entra</span>
-                <input name="referenceMonth" type="month" required />
-              </label>
-
-              <label class="field">
                 <span>Categoria</span>
-                <input
-                  name="category"
-                  type="text"
-                  list="categoryOptions"
-                  placeholder="Ex.: Mercado"
-                  required
-                />
+                <select name="category" id="categorySelect" required></select>
               </label>
 
               <label class="field">
-                <span>Pessoa</span>
-                <select name="personId" id="expensePersonSelect" required></select>
-              </label>
-
-              <label class="field">
-                <span>Forma de pagamento</span>
-                <select name="paymentMethod" required>
+                <span>Tipo de pagamento</span>
+                <select name="paymentType" id="paymentTypeSelect" required>
                   <option value="pix">Pix</option>
                   <option value="debito">Débito</option>
                   <option value="credito">Crédito</option>
@@ -123,319 +90,196 @@
               </label>
 
               <label class="field">
-                <span>Cartao</span>
+                <span>Cartão</span>
+                <select name="cardId" id="cardSelect">
+                  <option value="">Não se aplica</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>Nº de parcelas</span>
                 <input
-                  name="cardName"
-                  type="text"
-                  maxlength="40"
-                  placeholder="Opcional se foi no credito"
+                  name="installments"
+                  id="installmentsInput"
+                  type="number"
+                  min="1"
+                  max="48"
+                  step="1"
+                  value="1"
+                  required
                 />
               </label>
 
               <label class="field field-full">
                 <span>Observação</span>
-                <input name="notes" type="text" maxlength="140" />
+                <input name="notes" type="text" maxlength="180" />
               </label>
             </div>
 
             <div class="form-actions split-actions">
-              <span id="expenseFormHint" class="form-hint">
-                Registre compras do dia a dia e deixe o mes de referencia certo.
+              <span id="purchaseFormHint" class="form-hint">
+                Se for no crédito, o sistema calcula sozinho o mês de cobrança.
               </span>
               <button
-                id="expenseCancelButton"
+                id="purchaseCancelButton"
                 class="button button-secondary hidden"
                 type="button"
               >
-                Cancelar edicao
+                Cancelar edição
               </button>
-              <button id="expenseSubmitButton" class="button" type="submit">
+              <button id="purchaseSubmitButton" class="button" type="submit">
                 Salvar gasto
               </button>
             </div>
           </form>
 
-          <form id="installmentForm" class="entry-form hidden">
-            <input name="entryId" type="hidden" />
-            <div class="form-grid">
-              <label class="field">
-                <span>Descrição</span>
-                <input name="description" type="text" required maxlength="80" />
-              </label>
-
-              <label class="field">
-                <span>Valor total</span>
-                <input
-                  name="totalAmount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  inputmode="decimal"
-                  required
-                />
-              </label>
-
-              <label class="field">
-                <span>Data da compra</span>
-                <input name="purchaseDate" type="date" required />
-              </label>
-
-              <label class="field">
-                <span>Primeira fatura</span>
-                <input name="firstMonth" type="month" required />
-              </label>
-
-              <label class="field">
-                <span>Categoria</span>
-                <input
-                  name="category"
-                  type="text"
-                  list="categoryOptions"
-                  placeholder="Ex.: Casa"
-                  required
-                />
-              </label>
-
-              <label class="field">
-                <span>Pessoa</span>
-                <select name="personId" id="installmentPersonSelect" required></select>
-              </label>
-
-              <label class="field">
-                <span>Cartão</span>
-                <input name="cardName" type="text" placeholder="Ex.: Visa casa" required />
-              </label>
-
-              <label class="field">
-                <span>Quantidade de parcelas</span>
-                <input
-                  name="installmentCount"
-                  type="number"
-                  min="2"
-                  max="48"
-                  step="1"
-                  required
-                />
-              </label>
-
-              <label class="field field-full">
-                <span>Observação</span>
-                <input name="notes" type="text" maxlength="140" />
-              </label>
-            </div>
-
-            <div class="form-actions split-actions">
-              <span id="installmentFormHint" class="form-hint">
-                Use para compras grandes no cartao e acompanhe parcela por parcela.
-              </span>
-              <button
-                id="installmentCancelButton"
-                class="button button-secondary hidden"
-                type="button"
-              >
-                Cancelar edicao
-              </button>
-              <button id="installmentSubmitButton" class="button" type="submit">
-                Salvar parcelado
-              </button>
-            </div>
-          </form>
+          <div id="purchasePreview" class="preview-card"></div>
         </section>
 
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="panel-kicker">Visão mensal</p>
-              <h2>Resumo de lançamentos</h2>
+              <p class="panel-kicker">Mês selecionado</p>
+              <h2>Gastos do mês</h2>
             </div>
           </div>
-          <div class="filter-toolbar">
+
+          <div class="mini-filters">
             <label class="field">
-              <span>Buscar</span>
-              <input id="searchFilter" type="search" placeholder="Descricao ou observacao" />
+              <span>Responsável</span>
+              <select id="summaryResponsibleFilter"></select>
             </label>
+
             <label class="field">
-              <span>Pessoa</span>
-              <select id="personFilter"></select>
+              <span>Cartão</span>
+              <select id="summaryCardFilter"></select>
             </label>
-            <label class="field">
-              <span>Categoria</span>
-              <select id="categoryFilter"></select>
-            </label>
-            <label class="field">
-              <span>Cartao</span>
-              <select id="cardFilter"></select>
-            </label>
-            <label class="field">
-              <span>Tipo</span>
-              <select id="typeFilter">
-                <option value="all">Todos</option>
-                <option value="expense">Gastos do mes</option>
-                <option value="installment">Parcelados</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Status</span>
-              <select id="statusFilter">
-                <option value="all">Todos</option>
-                <option value="lancado">Lancado</option>
-                <option value="pago">Pago</option>
-                <option value="previsto">Previsto</option>
-                <option value="aberto">Em aberto</option>
-              </select>
-            </label>
-            <div class="filter-actions">
-              <button id="clearFiltersButton" class="button button-secondary" type="button">
+
+            <div class="filter-action">
+              <button id="clearSummaryFilters" class="button button-secondary" type="button">
                 Limpar filtros
               </button>
             </div>
           </div>
-          <div id="monthTableSummary" class="table-summary"></div>
-          <div id="monthTable" class="table-wrap"></div>
+
+          <div id="monthSummaryText" class="table-summary"></div>
+          <div id="monthCharges" class="table-wrap"></div>
         </section>
 
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="panel-kicker">Fechamento</p>
-              <h2>Fechamento do mes</h2>
+              <p class="panel-kicker">Cartões</p>
+              <h2>Gastos em cartões</h2>
             </div>
           </div>
-          <div id="monthClosingPanel" class="closing-panel"></div>
+          <div id="cardSummaries" class="stack-list"></div>
         </section>
 
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="panel-kicker">Distribuição</p>
-              <h2>Categorias do mês</h2>
-            </div>
-          </div>
-          <div id="categoryBreakdown" class="stack-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">Cartão e prazo</p>
-              <h2>Controle de parcelados</h2>
-            </div>
-          </div>
-          <div id="installmentsList" class="stack-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">Ajustes</p>
-              <h2>Configurações da casa</h2>
+              <p class="panel-kicker">Cadastro</p>
+              <h2>Cartões cadastrados</h2>
             </div>
           </div>
 
-          <form id="settingsForm" class="entry-form compact-form">
-            <div class="form-grid">
+          <form id="cardForm" class="entry-form compact-form">
+            <input name="entryId" type="hidden" />
+            <div class="form-grid form-grid-compact">
               <label class="field field-full">
-                <span>Nome do painel</span>
-                <input name="householdLabel" type="text" maxlength="50" required />
+                <span>Nome do cartão</span>
+                <input name="name" type="text" maxlength="50" required />
               </label>
 
               <label class="field">
-                <span>Pessoa 1</span>
-                <input name="personOne" type="text" maxlength="30" required />
+                <span>Fechamento da fatura</span>
+                <input name="closingDay" type="number" min="1" max="31" step="1" required />
               </label>
 
               <label class="field">
-                <span>Pessoa 2</span>
-                <input name="personTwo" type="text" maxlength="30" required />
-              </label>
-
-              <label class="field">
-                <span>Orçamento do mês</span>
-                <input
-                  name="monthlyBudget"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  inputmode="decimal"
-                  required
-                />
-              </label>
-
-              <label class="field field-full">
-                <span>URL do Apps Script</span>
-                <input
-                  name="scriptUrl"
-                  type="url"
-                  placeholder="https://script.google.com/macros/s/AKfycbwRoIHfXYo-krTAN4hIOgMUjlw25korrgBRymX1sC_QuG8gJOK4q5PfoVoN0z3BAKRF/exec"
-                />
-              </label>
-
-              <label class="field checkbox-field field-full">
-                <input name="autoSync" type="checkbox" />
-                <span>Sincronizar automaticamente depois de cada alteração</span>
+                <span>Pagamento da fatura</span>
+                <input name="paymentDay" type="number" min="1" max="31" step="1" required />
               </label>
             </div>
 
             <div class="form-actions split-actions">
-              <button class="button" type="submit">Salvar configurações</button>
-              <button id="pullGoogleButton" class="button button-secondary" type="button">
-                Puxar do Google
+              <span id="cardFormHint" class="form-hint">
+                O fechamento define em qual mês cada compra entra.
+              </span>
+              <button
+                id="cardCancelButton"
+                class="button button-secondary hidden"
+                type="button"
+              >
+                Cancelar edição
               </button>
-              <button id="pushGoogleButton" class="button button-secondary" type="button">
-                Enviar ao Google
-              </button>
-              <button id="exportButton" class="button button-secondary" type="button">
-                Exportar JSON
-              </button>
-              <button id="importButton" class="button button-secondary" type="button">
-                Importar JSON
-              </button>
-              <button id="clearDemoButton" class="button button-danger" type="button">
-                Limpar dados de exemplo
+              <button id="cardSubmitButton" class="button" type="submit">
+                Salvar cartão
               </button>
             </div>
           </form>
+
+          <div id="cardList" class="stack-list"></div>
         </section>
 
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="panel-kicker">Integração</p>
-              <h2>Como essa versão funciona</h2>
+              <p class="panel-kicker">Parcelados</p>
+              <h2>Compras parceladas ativas</h2>
+            </div>
+          </div>
+          <div id="installmentOverview" class="stack-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Opcional</p>
+              <h2>Orçamento</h2>
             </div>
           </div>
 
-          <div class="info-list">
-            <div class="info-card">
-              <strong>Lançamento rápido</strong>
-              <p>
-                O formulário de gasto registra compras normais do mês. Se cair em
-                outra fatura, basta trocar o mês de referência.
-              </p>
+          <form id="budgetForm" class="entry-form compact-form">
+            <div class="form-grid form-grid-compact">
+              <label class="field">
+                <span>Valor do orçamento</span>
+                <input
+                  name="budgetAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputmode="decimal"
+                  placeholder="Deixe vazio se não quiser usar"
+                />
+              </label>
+
+              <label class="field">
+                <span>Orçamento de quem?</span>
+                <select name="budgetOwner">
+                  <option value="">Sem responsável</option>
+                  <option value="thales">THALES</option>
+                  <option value="catia">CÁTIA</option>
+                </select>
+              </label>
             </div>
 
-            <div class="info-card">
-              <strong>Parcelados controlados</strong>
-              <p>
-                Cada compra parcelada mostra quanto já foi pago, quanto falta e
-                qual parcela entra a seguir.
-              </p>
+            <div class="form-actions split-actions">
+              <span class="form-hint">
+                O orçamento é opcional. Se estiver vazio, o painel mostra só os gastos.
+              </span>
+              <button id="clearBudgetButton" class="button button-secondary" type="button">
+                Limpar orçamento
+              </button>
+              <button class="button" type="submit">Salvar orçamento</button>
             </div>
+          </form>
 
-            <div class="info-card">
-              <strong>Google Sheets pronto</strong>
-              <p>
-                A conexão usa um Apps Script simples. Assim vocês conseguem usar a
-                mesma base de dados nos dois celulares.
-              </p>
-            </div>
-          </div>
+          <div id="budgetSummary" class="info-card"></div>
         </section>
       </section>
     </main>
-
-    <datalist id="categoryOptions"></datalist>
-    <input id="importFile" type="file" accept="application/json" hidden />
 
     <script src="app.js"></script>
   </body>

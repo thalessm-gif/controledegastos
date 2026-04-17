@@ -1,48 +1,42 @@
-# Controle de Gastos da Casa
+# Controle da Casa
 
-Versão inicial de um painel simples para controlar gastos da casa, com:
+Painel pensado para THALES e CÁTIA, com foco em:
 
-- gastos normais do mês
-- separação por pessoa
-- total consolidado da casa
-- compras no cartão parceladas com progresso do que já foi pago
-- preparação para sincronizar com Google Sheets
-- edição de gastos e parcelados
-- filtros por pessoa, categoria, tipo e cartao
-- fechamento mensal com trava logica do mes fechado
+- lançamento rápido de gastos
+- cálculo automático do mês de cobrança no crédito
+- cartões com dia de fechamento e dia de pagamento
+- resumo enxuto do mês
+- resumo por cartão
+- orçamento opcional
+- sincronização com Google Sheets
 
 ## Como abrir
 
-Abra o arquivo `index.html` no navegador.
+Abra `index.html` no navegador.
 
-Nesta cópia do projeto, a URL do seu Apps Script já ficou configurada por padrão.
+## O que esta versão faz
 
-## O que essa versão já faz
+- cadastra cartões com fechamento e pagamento
+- lança compras com responsável, data, valor, categoria, cartão, tipo de pagamento, parcelas e observação
+- calcula sozinho em qual mês a compra entra na fatura
+- mostra o total do mês, o total de THALES e o total de CÁTIA
+- mostra os gastos cobrados no mês selecionado
+- mostra um resumo específico de cartões no mês
+- acompanha compras parceladas ainda ativas
 
-- mostra resumo mensal
-- calcula total por pessoa
-- agrupa por categoria
-- permite lançar compras parceladas
-- acompanha quanto falta pagar em cada compra parcelada
-- permite editar gastos e compras parceladas
-- filtra a visao mensal por pessoa, categoria, cartao, tipo e status
-- permite fechar e reabrir o mes selecionado
-- exporta e importa os dados em JSON
+## Google Sheets
 
-## Como usar o Google Sheets
+1. Abra a planilha que vai guardar os dados.
+2. Entre no Apps Script da planilha.
+3. Substitua o conteúdo por `google-apps-script/Code.gs`.
+4. Publique ou atualize o Web App.
+5. Volte ao painel e use o botão `Sincronizar com Google Sheets`.
 
-1. Crie uma planilha nova no Google Sheets.
-2. Abra o Apps Script dessa planilha.
-3. Cole o conteúdo atualizado de `google-apps-script/Code.gs`.
-4. Atualize a implantacao do Web App com acesso liberado para quem tiver o link.
-5. Copie a URL gerada.
-6. No painel, confirme a URL no campo `URL do Apps Script`.
-7. Use `Puxar do Google` e `Enviar ao Google`.
+## Próxima personalização
 
-## Observação importante
+Falta só você me passar:
 
-Essa primeira versão usa sincronização simples por merge de dados. Para um casal usando em dois celulares, já funciona bem como ponto de partida. Se vocês curtirem o fluxo, a próxima evolução natural é transformar isso em uma aplicação hospedada com autenticação e sincronização automática em tempo real.
+- os cartões com nome, dia de fechamento e dia de pagamento
+- a lista final de categorias que quer padronizar
 
-## Importante nesta etapa
-
-Como agora existem campos novos, como `cardName` em gastos normais e `monthClosures` para fechamento mensal, vale atualizar o Apps Script antes de sincronizar de novo com o Google Sheets.
+Com isso eu deixo o painel já pronto com os dados reais de vocês.

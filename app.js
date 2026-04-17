@@ -1,20 +1,24 @@
-const STORAGE_KEY = "controle-casa-v1";
+const STORAGE_KEY = "controle-casa-v3";
 const DEFAULT_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwRoIHfXYo-krTAN4hIOgMUjlw25korrgBRymX1sC_QuG8gJOK4q5PfoVoN0z3BAKRF/exec";
+const PEOPLE = [
+  { id: "thales", name: "THALES" },
+  { id: "catia", name: "CÁTIA" },
+];
 const DEFAULT_CATEGORIES = [
   "Mercado",
-  "Moradia",
-  "Contas",
-  "Saude",
-  "Transporte",
   "Casa",
-  "Educacao",
+  "Contas Fixas",
+  "Transporte",
+  "Saúde",
+  "Farmácia",
   "Lazer",
+  "Restaurante",
   "Pets",
+  "Educação",
   "Outros",
 ];
-
-const PAYMENT_METHOD_LABELS = {
+const PAYMENT_TYPE_LABELS = {
   pix: "Pix",
   debito: "Débito",
   credito: "Crédito",
@@ -24,16 +28,11 @@ const PAYMENT_METHOD_LABELS = {
 
 let state = null;
 const uiState = {
-  activeForm: "expense",
-  expenseEditId: "",
-  installmentEditId: "",
+  purchaseEditId: "",
+  cardEditId: "",
   filters: {
-    search: "",
-    personId: "all",
-    category: "all",
-    cardName: "all",
-    type: "all",
-    status: "all",
+    responsible: "all",
+    cardId: "all",
   },
 };
 
@@ -45,261 +44,110 @@ function init() {
   cacheDom();
   state = loadState();
   wireEvents();
-  hydrateFormDefaults();
+  dom.purchaseForm.elements.date.value = getCurrentDate();
   renderAll();
 }
 
 function cacheDom() {
-  dom.householdTitle = document.querySelector("#householdTitle");
   dom.selectedMonth = document.querySelector("#selectedMonth");
-  dom.syncNowButton = document.querySelector("#syncNowButton");
-  dom.dataModeBadge = document.querySelector("#dataModeBadge");
+  dom.syncButton = document.querySelector("#syncButton");
+  dom.statusBadge = document.querySelector("#statusBadge");
   dom.syncStatus = document.querySelector("#syncStatus");
   dom.statsGrid = document.querySelector("#statsGrid");
-  dom.expenseForm = document.querySelector("#expenseForm");
-  dom.installmentForm = document.querySelector("#installmentForm");
-  dom.monthTable = document.querySelector("#monthTable");
-  dom.monthTableSummary = document.querySelector("#monthTableSummary");
-  dom.categoryBreakdown = document.querySelector("#categoryBreakdown");
-  dom.installmentsList = document.querySelector("#installmentsList");
-  dom.monthClosingPanel = document.querySelector("#monthClosingPanel");
-  dom.settingsForm = document.querySelector("#settingsForm");
-  dom.importFile = document.querySelector("#importFile");
-  dom.categoryOptions = document.querySelector("#categoryOptions");
-  dom.pullGoogleButton = document.querySelector("#pullGoogleButton");
-  dom.pushGoogleButton = document.querySelector("#pushGoogleButton");
-  dom.exportButton = document.querySelector("#exportButton");
-  dom.importButton = document.querySelector("#importButton");
-  dom.clearDemoButton = document.querySelector("#clearDemoButton");
-  dom.segmentButtons = document.querySelectorAll(".segment-button");
-  dom.expensePersonSelect = document.querySelector("#expensePersonSelect");
-  dom.installmentPersonSelect = document.querySelector("#installmentPersonSelect");
-  dom.expenseSubmitButton = document.querySelector("#expenseSubmitButton");
-  dom.installmentSubmitButton = document.querySelector("#installmentSubmitButton");
-  dom.expenseCancelButton = document.querySelector("#expenseCancelButton");
-  dom.installmentCancelButton = document.querySelector("#installmentCancelButton");
-  dom.expenseFormHint = document.querySelector("#expenseFormHint");
-  dom.installmentFormHint = document.querySelector("#installmentFormHint");
-  dom.searchFilter = document.querySelector("#searchFilter");
-  dom.personFilter = document.querySelector("#personFilter");
-  dom.categoryFilter = document.querySelector("#categoryFilter");
-  dom.cardFilter = document.querySelector("#cardFilter");
-  dom.typeFilter = document.querySelector("#typeFilter");
-  dom.statusFilter = document.querySelector("#statusFilter");
-  dom.clearFiltersButton = document.querySelector("#clearFiltersButton");
+
+  dom.purchaseForm = document.querySelector("#purchaseForm");
+  dom.responsibleSelect = document.querySelector("#responsibleSelect");
+  dom.categorySelect = document.querySelector("#categorySelect");
+  dom.paymentTypeSelect = document.querySelector("#paymentTypeSelect");
+  dom.cardSelect = document.querySelector("#cardSelect");
+  dom.installmentsInput = document.querySelector("#installmentsInput");
+  dom.purchaseSubmitButton = document.querySelector("#purchaseSubmitButton");
+  dom.purchaseCancelButton = document.querySelector("#purchaseCancelButton");
+  dom.purchaseFormHint = document.querySelector("#purchaseFormHint");
+  dom.purchasePreview = document.querySelector("#purchasePreview");
+
+  dom.summaryResponsibleFilter = document.querySelector("#summaryResponsibleFilter");
+  dom.summaryCardFilter = document.querySelector("#summaryCardFilter");
+  dom.clearSummaryFilters = document.querySelector("#clearSummaryFilters");
+  dom.monthSummaryText = document.querySelector("#monthSummaryText");
+  dom.monthCharges = document.querySelector("#monthCharges");
+
+  dom.cardSummaries = document.querySelector("#cardSummaries");
+  dom.cardForm = document.querySelector("#cardForm");
+  dom.cardSubmitButton = document.querySelector("#cardSubmitButton");
+  dom.cardCancelButton = document.querySelector("#cardCancelButton");
+  dom.cardFormHint = document.querySelector("#cardFormHint");
+  dom.cardList = document.querySelector("#cardList");
+
+  dom.installmentOverview = document.querySelector("#installmentOverview");
+
+  dom.budgetForm = document.querySelector("#budgetForm");
+  dom.clearBudgetButton = document.querySelector("#clearBudgetButton");
+  dom.budgetSummary = document.querySelector("#budgetSummary");
 }
 
 function wireEvents() {
   dom.selectedMonth.addEventListener("change", handleMonthChange);
-  dom.syncNowButton.addEventListener("click", () => syncWithGoogle("merge"));
+  dom.syncButton.addEventListener("click", syncWithGoogle);
 
-  dom.segmentButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      uiState.activeForm = button.dataset.formTarget;
-      renderFormMode();
-    });
-  });
+  dom.purchaseForm.addEventListener("submit", handlePurchaseSubmit);
+  dom.purchaseCancelButton.addEventListener("click", cancelPurchaseEdit);
+  dom.paymentTypeSelect.addEventListener("change", renderAll);
+  dom.cardSelect.addEventListener("change", renderPurchasePreview);
+  dom.installmentsInput.addEventListener("input", renderPurchasePreview);
+  dom.purchaseForm.elements.date.addEventListener("change", renderPurchasePreview);
+  dom.purchaseForm.elements.amount.addEventListener("input", renderPurchasePreview);
 
-  dom.expenseForm.addEventListener("submit", handleExpenseSubmit);
-  dom.installmentForm.addEventListener("submit", handleInstallmentSubmit);
-  dom.settingsForm.addEventListener("submit", handleSettingsSubmit);
-  dom.monthTable.addEventListener("click", handleMonthTableClick);
-  dom.installmentsList.addEventListener("click", handleInstallmentListClick);
+  dom.summaryResponsibleFilter.addEventListener("change", handleFilterChange);
+  dom.summaryCardFilter.addEventListener("change", handleFilterChange);
+  dom.clearSummaryFilters.addEventListener("click", clearSummaryFilters);
+  dom.monthCharges.addEventListener("click", handleMonthChargesClick);
 
-  dom.pullGoogleButton.addEventListener("click", () => syncWithGoogle("pull"));
-  dom.pushGoogleButton.addEventListener("click", () => syncWithGoogle("push"));
-  dom.exportButton.addEventListener("click", exportState);
-  dom.importButton.addEventListener("click", () => dom.importFile.click());
-  dom.importFile.addEventListener("change", importStateFromFile);
-  dom.clearDemoButton.addEventListener("click", clearDemoData);
-  dom.expenseCancelButton.addEventListener("click", cancelExpenseEdit);
-  dom.installmentCancelButton.addEventListener("click", cancelInstallmentEdit);
-  dom.clearFiltersButton.addEventListener("click", clearFilters);
-  dom.monthClosingPanel.addEventListener("click", handleMonthClosingClick);
+  dom.cardForm.addEventListener("submit", handleCardSubmit);
+  dom.cardCancelButton.addEventListener("click", cancelCardEdit);
+  dom.cardList.addEventListener("click", handleCardListClick);
 
-  [
-    dom.searchFilter,
-    dom.personFilter,
-    dom.categoryFilter,
-    dom.cardFilter,
-    dom.typeFilter,
-    dom.statusFilter,
-  ].forEach((element) => {
-    element.addEventListener("input", handleFilterChange);
-    element.addEventListener("change", handleFilterChange);
-  });
-
-  dom.expenseForm.elements.date.addEventListener("change", () => {
-    if (!dom.expenseForm.elements.referenceMonth.value) {
-      dom.expenseForm.elements.referenceMonth.value = getMonthFromDate(
-        dom.expenseForm.elements.date.value
-      );
-    }
-  });
-
-  dom.installmentForm.elements.purchaseDate.addEventListener("change", () => {
-    if (!dom.installmentForm.elements.firstMonth.value) {
-      dom.installmentForm.elements.firstMonth.value = getMonthFromDate(
-        dom.installmentForm.elements.purchaseDate.value
-      );
-    }
-  });
+  dom.budgetForm.addEventListener("submit", handleBudgetSubmit);
+  dom.clearBudgetButton.addEventListener("click", clearBudget);
 }
 
 function createEmptyState() {
   return {
-    version: 1,
-    seededDemo: false,
+    version: 3,
     settings: {
-      householdLabel: "Painel financeiro da casa",
-      people: [
-        { id: "person-1", name: "Você" },
-        { id: "person-2", name: "Sua esposa" },
-      ],
-      monthlyBudget: 5000,
       selectedMonth: getCurrentMonth(),
-      categories: [...DEFAULT_CATEGORIES],
-      updatedAt: nowIso(),
+      budgetAmount: 0,
+      budgetOwner: "",
+      updatedAt: "",
     },
     sync: {
       scriptUrl: DEFAULT_SCRIPT_URL,
-      autoSync: false,
       lastSyncedAt: "",
-      lastSyncMessage: "Sincronização ainda não configurada.",
+      lastSyncMessage: "Sincronização ainda não executada.",
     },
-    expenses: [],
-    installments: [],
-    monthClosures: [],
+    cards: [],
+    purchases: [],
     deletions: {
-      expenses: [],
-      installments: [],
+      cards: [],
+      purchases: [],
     },
   };
-}
-
-function buildDemoState() {
-  const demo = createEmptyState();
-  const currentMonth = demo.settings.selectedMonth;
-  const lastMonth = addMonths(currentMonth, -1);
-
-  demo.seededDemo = true;
-  demo.settings.people = [
-    { id: "person-1", name: "Thales" },
-    { id: "person-2", name: "Esposa" },
-  ];
-  demo.settings.monthlyBudget = 6500;
-  demo.settings.categories = [
-    ...DEFAULT_CATEGORIES,
-    "Assinaturas",
-    "Farmacia",
-    "Restaurante",
-  ];
-  demo.expenses = [
-    {
-      id: "exp-demo-1",
-      date: `${currentMonth}-03`,
-      referenceMonth: currentMonth,
-      description: "Supermercado do mês",
-      category: "Mercado",
-      amount: 428.35,
-      personId: "person-1",
-      paymentMethod: "debito",
-      notes: "Compra grande da quinzena",
-      updatedAt: nowIso(),
-    },
-    {
-      id: "exp-demo-2",
-      date: `${currentMonth}-05`,
-      referenceMonth: currentMonth,
-      description: "Internet fibra",
-      category: "Contas",
-      amount: 119.9,
-      personId: "person-2",
-      paymentMethod: "pix",
-      notes: "",
-      updatedAt: nowIso(),
-    },
-    {
-      id: "exp-demo-3",
-      date: `${currentMonth}-09`,
-      referenceMonth: currentMonth,
-      description: "Farmacia",
-      category: "Saude",
-      amount: 87.42,
-      personId: "person-2",
-      paymentMethod: "credito",
-      notes: "Medicamentos",
-      updatedAt: nowIso(),
-    },
-    {
-      id: "exp-demo-4",
-      date: `${lastMonth}-28`,
-      referenceMonth: currentMonth,
-      description: "Combustível",
-      category: "Transporte",
-      amount: 160,
-      personId: "person-1",
-      paymentMethod: "credito",
-      notes: "Lançado na fatura deste mês",
-      updatedAt: nowIso(),
-    },
-  ];
-
-  demo.installments = [
-    normalizeInstallment({
-      id: "inst-demo-1",
-      purchaseDate: `${lastMonth}-12`,
-      description: "Sofá da sala",
-      category: "Casa",
-      totalAmount: 2899.9,
-      installmentCount: 10,
-      paidInstallments: 2,
-      firstMonth: lastMonth,
-      personId: "person-1",
-      cardName: "Visa Casa",
-      notes: "Parcela fixa da reforma",
-      updatedAt: nowIso(),
-    }),
-    normalizeInstallment({
-      id: "inst-demo-2",
-      purchaseDate: `${currentMonth}-02`,
-      description: "Air fryer",
-      category: "Casa",
-      totalAmount: 459.8,
-      installmentCount: 4,
-      paidInstallments: 1,
-      firstMonth: currentMonth,
-      personId: "person-2",
-      cardName: "Master Família",
-      notes: "",
-      updatedAt: nowIso(),
-    }),
-  ];
-
-  return demo;
 }
 
 function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
-      const initialState = createEmptyState();
-      persistState({ skipRender: true, skipAutoSync: true }, initialState);
-      return initialState;
-    }
-
-    return normalizeState(JSON.parse(saved));
+    return normalizeState(saved ? JSON.parse(saved) : createEmptyState());
   } catch (error) {
     console.error(error);
-    return buildDemoState();
+    return normalizeState(createEmptyState());
   }
 }
 
 function normalizeState(rawState) {
   const empty = createEmptyState();
   const normalized = {
-    version: 1,
-    seededDemo: Boolean(rawState?.seededDemo),
+    version: 3,
     settings: {
       ...empty.settings,
       ...(rawState?.settings || {}),
@@ -308,150 +156,69 @@ function normalizeState(rawState) {
       ...empty.sync,
       ...(rawState?.sync || {}),
     },
-    expenses: Array.isArray(rawState?.expenses)
-      ? rawState.expenses.map(normalizeExpense).filter(Boolean)
+    cards: Array.isArray(rawState?.cards)
+      ? rawState.cards.map(normalizeCard).filter(Boolean)
       : [],
-    installments: Array.isArray(rawState?.installments)
-      ? rawState.installments.map(normalizeInstallment).filter(Boolean)
-      : [],
-    monthClosures: Array.isArray(rawState?.monthClosures)
-      ? rawState.monthClosures.map(normalizeMonthClosure).filter(Boolean)
+    purchases: Array.isArray(rawState?.purchases)
+      ? rawState.purchases.map(normalizePurchase).filter(Boolean)
       : [],
     deletions: {
-      expenses: normalizeDeletionList(rawState?.deletions?.expenses),
-      installments: normalizeDeletionList(rawState?.deletions?.installments),
+      cards: normalizeDeletionList(rawState?.deletions?.cards),
+      purchases: normalizeDeletionList(rawState?.deletions?.purchases),
     },
   };
 
-  if (!Array.isArray(normalized.settings.people) || normalized.settings.people.length < 2) {
-    normalized.settings.people = empty.settings.people;
-  } else {
-    normalized.settings.people = normalized.settings.people.map((person, index) => ({
-      id: person.id || `person-${index + 1}`,
-      name: cleanText(person.name) || `Pessoa ${index + 1}`,
-    }));
-  }
-
-  const rawCategories = Array.isArray(normalized.settings.categories)
-    ? normalized.settings.categories
-    : [];
-
-  normalized.settings.categories = Array.from(
-    new Set(
-      [...DEFAULT_CATEGORIES, ...rawCategories]
-        .map((category) => cleanText(category))
-        .filter(Boolean)
-    )
-  );
-
-  normalized.settings.householdLabel =
-    cleanText(normalized.settings.householdLabel) || empty.settings.householdLabel;
-  normalized.settings.selectedMonth =
-    isValidMonth(normalized.settings.selectedMonth) && normalized.settings.selectedMonth
-      ? normalized.settings.selectedMonth
-      : getCurrentMonth();
-  normalized.settings.monthlyBudget = normalizeMoney(normalized.settings.monthlyBudget);
-  normalized.settings.updatedAt = normalized.settings.updatedAt || nowIso();
+  normalized.settings.selectedMonth = isValidMonth(normalized.settings.selectedMonth)
+    ? normalized.settings.selectedMonth
+    : getCurrentMonth();
+  normalized.settings.budgetAmount = normalizeMoney(normalized.settings.budgetAmount);
+  normalized.settings.budgetOwner = normalizeBudgetOwner(normalized.settings.budgetOwner);
+  normalized.settings.updatedAt = normalized.settings.updatedAt || "";
   normalized.sync.scriptUrl = cleanText(normalized.sync.scriptUrl) || DEFAULT_SCRIPT_URL;
-  normalized.monthClosures = mergeMonthClosures(normalized.monthClosures, []);
 
   return normalized;
 }
 
-function normalizeExpense(expense) {
-  if (!expense) {
+function normalizeCard(card) {
+  if (!card) {
     return null;
   }
 
   const normalized = {
-    id: expense.id || createId("exp"),
-    date: isValidDate(expense.date) ? expense.date : getCurrentDate(),
-    referenceMonth: isValidMonth(expense.referenceMonth)
-      ? expense.referenceMonth
-      : getCurrentMonth(),
-    description: cleanText(expense.description) || "Gasto sem descrição",
-    category: cleanText(expense.category) || "Outros",
-    amount: normalizeMoney(expense.amount),
-    personId: cleanText(expense.personId) || "person-1",
-    paymentMethod: PAYMENT_METHOD_LABELS[expense.paymentMethod]
-      ? expense.paymentMethod
-      : "pix",
-    cardName: cleanText(expense.cardName),
-    notes: cleanText(expense.notes),
-    updatedAt: expense.updatedAt || nowIso(),
+    id: cleanText(card.id) || createId("card"),
+    name: cleanText(card.name),
+    closingDay: clampInteger(card.closingDay, 1, 31, 1),
+    paymentDay: clampInteger(card.paymentDay, 1, 31, 1),
+    updatedAt: cleanText(card.updatedAt) || nowIso(),
+  };
+
+  return normalized.name ? normalized : null;
+}
+
+function normalizePurchase(purchase) {
+  if (!purchase) {
+    return null;
+  }
+
+  const paymentType = normalizePaymentType(purchase.paymentType);
+  const installments =
+    paymentType === "credito"
+      ? clampInteger(purchase.installments, 1, 48, 1)
+      : 1;
+  const normalized = {
+    id: cleanText(purchase.id) || createId("purchase"),
+    responsible: normalizeResponsible(purchase.responsible),
+    date: isValidDate(purchase.date) ? purchase.date : getCurrentDate(),
+    amount: normalizeMoney(purchase.amount),
+    category: normalizeCategory(purchase.category),
+    paymentType,
+    cardId: paymentType === "credito" ? cleanText(purchase.cardId) : "",
+    installments,
+    notes: cleanText(purchase.notes),
+    updatedAt: cleanText(purchase.updatedAt) || nowIso(),
   };
 
   return normalized.amount > 0 ? normalized : null;
-}
-
-function normalizeInstallment(installment) {
-  if (!installment) {
-    return null;
-  }
-
-  const count = clampInteger(installment.installmentCount, 2, 48, 2);
-  const totalAmount = normalizeMoney(installment.totalAmount);
-  const installmentAmounts = Array.isArray(installment.installmentAmounts)
-    ? installment.installmentAmounts.map((value) => normalizeMoney(value))
-    : splitInstallments(totalAmount, count);
-
-  const normalized = {
-    id: installment.id || createId("inst"),
-    purchaseDate: isValidDate(installment.purchaseDate)
-      ? installment.purchaseDate
-      : getCurrentDate(),
-    description: cleanText(installment.description) || "Compra parcelada",
-    category: cleanText(installment.category) || "Outros",
-    totalAmount,
-    installmentCount: count,
-    paidInstallments: clampInteger(installment.paidInstallments, 0, count, 0),
-    firstMonth: isValidMonth(installment.firstMonth)
-      ? installment.firstMonth
-      : getCurrentMonth(),
-    personId: cleanText(installment.personId) || "person-1",
-    cardName: cleanText(installment.cardName) || "Cartão",
-    notes: cleanText(installment.notes),
-    installmentAmounts,
-    updatedAt: installment.updatedAt || nowIso(),
-  };
-
-  return normalized.totalAmount > 0 ? normalized : null;
-}
-
-function normalizeMonthClosure(monthClosure) {
-  if (!monthClosure || !isValidMonth(monthClosure.month)) {
-    return null;
-  }
-
-  return {
-    id: monthClosure.id || monthClosure.month,
-    month: monthClosure.month,
-    status: monthClosure.status === "closed" ? "closed" : "open",
-    closedAt: monthClosure.closedAt || "",
-    note: cleanText(monthClosure.note),
-    monthTotal: normalizeMoney(monthClosure.monthTotal),
-    itemCount: clampInteger(monthClosure.itemCount, 0, 100000, 0),
-    byPerson: Array.isArray(monthClosure.byPerson)
-      ? monthClosure.byPerson.map((person) => ({
-          id: cleanText(person.id) || "person-1",
-          name: cleanText(person.name) || "Pessoa",
-          total: normalizeMoney(person.total),
-          share: clampInteger(person.share, 0, 100, 0),
-        }))
-      : [],
-    categoryTotals: Array.isArray(monthClosure.categoryTotals)
-      ? monthClosure.categoryTotals.map((category) => ({
-          name: cleanText(category.name) || "Outros",
-          total: normalizeMoney(category.total),
-          share: cleanText(category.share),
-        }))
-      : [],
-    remainingInstallmentsAmount: normalizeMoney(monthClosure.remainingInstallmentsAmount),
-    paidInstallmentsAmount: normalizeMoney(monthClosure.paidInstallmentsAmount),
-    openInstallments: clampInteger(monthClosure.openInstallments, 0, 100000, 0),
-    paidInstallmentsCount: clampInteger(monthClosure.paidInstallmentsCount, 0, 100000, 0),
-    updatedAt: monthClosure.updatedAt || nowIso(),
-  };
 }
 
 function normalizeDeletionList(list) {
@@ -459,201 +226,532 @@ function normalizeDeletionList(list) {
     return [];
   }
 
-  const map = new Map();
-
+  const byId = new Map();
   list.forEach((item) => {
-    if (!item || !item.id || !item.deletedAt) {
+    const id = cleanText(item?.id);
+    const deletedAt = cleanText(item?.deletedAt);
+    if (!id || !deletedAt) {
       return;
     }
 
-    const existing = map.get(item.id);
-    if (!existing || item.deletedAt > existing.deletedAt) {
-      map.set(item.id, {
-        id: item.id,
-        deletedAt: item.deletedAt,
-      });
+    const current = byId.get(id);
+    if (!current || deletedAt > current.deletedAt) {
+      byId.set(id, { id, deletedAt });
     }
   });
 
-  return Array.from(map.values());
+  return Array.from(byId.values());
 }
 
-function hydrateFormDefaults() {
-  dom.selectedMonth.value = state.settings.selectedMonth;
-  dom.expenseForm.elements.date.value = getCurrentDate();
-  dom.expenseForm.elements.referenceMonth.value = state.settings.selectedMonth;
-  dom.installmentForm.elements.purchaseDate.value = getCurrentDate();
-  dom.installmentForm.elements.firstMonth.value = state.settings.selectedMonth;
+function persistState(options = {}) {
+  state = normalizeState(state);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (!options.skipRender) {
+    renderAll();
+  }
+}
+
+function cleanText(value) {
+  return String(value || "").trim();
+}
+
+function normalizeMoney(value) {
+  const parsed = Number.parseFloat(String(value || "").replace(",", "."));
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return Math.round(parsed * 100) / 100;
+}
+
+function clampInteger(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(min, Math.min(max, parsed));
+}
+
+function sum(values) {
+  return normalizeMoney(values.reduce((total, value) => total + value, 0));
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function getCurrentDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getCurrentMonth() {
+  return getCurrentDate().slice(0, 7);
+}
+
+function isValidDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+}
+
+function isValidMonth(value) {
+  return /^\d{4}-\d{2}$/.test(String(value || ""));
+}
+
+function normalizeResponsible(value) {
+  const normalized = cleanText(value).toLowerCase();
+  return PEOPLE.some((person) => person.id === normalized) ? normalized : "thales";
+}
+
+function normalizeBudgetOwner(value) {
+  const normalized = cleanText(value).toLowerCase();
+  return PEOPLE.some((person) => person.id === normalized) ? normalized : "";
+}
+
+function normalizeCategory(value) {
+  const category = cleanText(value);
+  return DEFAULT_CATEGORIES.includes(category) ? category : DEFAULT_CATEGORIES[0];
+}
+
+function normalizePaymentType(value) {
+  return Object.prototype.hasOwnProperty.call(PAYMENT_TYPE_LABELS, value)
+    ? value
+    : "pix";
+}
+
+function createId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function addMonths(month, amount) {
+  const [year, monthNumber] = String(month).split("-").map(Number);
+  const date = new Date(year, monthNumber - 1 + amount, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthDiff(startMonth, endMonth) {
+  const [startYear, startMonthNumber] = String(startMonth).split("-").map(Number);
+  const [endYear, endMonthNumber] = String(endMonth).split("-").map(Number);
+  return (endYear - startYear) * 12 + (endMonthNumber - startMonthNumber);
+}
+
+function getDaysInMonth(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value || 0);
+}
+
+function formatDate(dateString) {
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
+}
+
+function formatMonthLabel(monthString) {
+  const [year, month] = String(monthString).split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+}
+
+function formatDateTime(dateString) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(dateString));
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getResponsibleName(responsibleId) {
+  return PEOPLE.find((person) => person.id === responsibleId)?.name || "THALES";
+}
+
+function getCardById(cardId) {
+  return state.cards.find((card) => card.id === cardId) || null;
+}
+
+function getCardUsageCount(cardId) {
+  return state.purchases.filter((purchase) => purchase.cardId === cardId).length;
+}
+
+function splitInstallments(totalAmount, installments) {
+  const totalInCents = Math.round(normalizeMoney(totalAmount) * 100);
+  const base = Math.floor(totalInCents / installments);
+  const remainder = totalInCents % installments;
+  const result = [];
+
+  for (let index = 0; index < installments; index += 1) {
+    result.push((base + (index < remainder ? 1 : 0)) / 100);
+  }
+
+  return result;
+}
+
+function getFirstChargeMonth(purchase) {
+  const purchaseMonth = purchase.date.slice(0, 7);
+  if (purchase.paymentType !== "credito") {
+    return purchaseMonth;
+  }
+
+  const card = getCardById(purchase.cardId);
+  if (!card) {
+    return purchaseMonth;
+  }
+
+  const purchaseDay = Number.parseInt(purchase.date.slice(8, 10), 10);
+  return purchaseDay <= card.closingDay ? purchaseMonth : addMonths(purchaseMonth, 1);
+}
+
+function getCardDueDate(month, card) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const day = Math.min(card.paymentDay, getDaysInMonth(year, monthNumber));
+  return `${year}-${String(monthNumber).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function buildChargeEntries(purchase) {
+  const firstChargeMonth = getFirstChargeMonth(purchase);
+  const amounts = splitInstallments(purchase.amount, purchase.installments);
+  const card = getCardById(purchase.cardId);
+
+  return amounts.map((amount, index) => {
+    const chargeMonth =
+      purchase.paymentType === "credito" ? addMonths(firstChargeMonth, index) : firstChargeMonth;
+    const dueDate =
+      purchase.paymentType === "credito" && card
+        ? getCardDueDate(chargeMonth, card)
+        : purchase.date;
+
+    return {
+      id: `${purchase.id}-${index + 1}`,
+      purchaseId: purchase.id,
+      responsible: purchase.responsible,
+      responsibleLabel: getResponsibleName(purchase.responsible),
+      purchaseDate: purchase.date,
+      chargeMonth,
+      dueDate,
+      category: purchase.category,
+      paymentType: purchase.paymentType,
+      paymentTypeLabel: PAYMENT_TYPE_LABELS[purchase.paymentType],
+      cardId: purchase.cardId,
+      cardName: card?.name || "",
+      installmentIndex: index + 1,
+      installments: purchase.installments,
+      amount,
+      notes: purchase.notes,
+      detail: buildChargeDetail(purchase, card, chargeMonth, dueDate, index + 1),
+    };
+  });
+}
+
+function buildChargeDetail(purchase, card, chargeMonth, dueDate, installmentIndex) {
+  const parts = [PAYMENT_TYPE_LABELS[purchase.paymentType]];
+  if (card) {
+    parts.push(card.name);
+    parts.push(`vence em ${formatDate(dueDate)}`);
+  } else {
+    parts.push(`entra em ${formatMonthLabel(chargeMonth)}`);
+  }
+
+  if (purchase.paymentType === "credito") {
+    parts.push(`${installmentIndex}/${purchase.installments}`);
+  }
+
+  if (purchase.notes) {
+    parts.push(purchase.notes);
+  }
+
+  return parts.join(" • ");
+}
+
+function getMonthlyCharges(month) {
+  return state.purchases
+    .flatMap((purchase) => buildChargeEntries(purchase))
+    .filter((charge) => charge.chargeMonth === month)
+    .sort((left, right) => {
+      if (left.dueDate !== right.dueDate) {
+        return left.dueDate.localeCompare(right.dueDate);
+      }
+      if (left.category !== right.category) {
+        return left.category.localeCompare(right.category);
+      }
+      return left.responsibleLabel.localeCompare(right.responsibleLabel);
+    });
+}
+
+function getMonthlySummary(month) {
+  const charges = getMonthlyCharges(month);
+  const total = sum(charges.map((charge) => charge.amount));
+  const byPerson = PEOPLE.map((person) => {
+    const personTotal = sum(
+      charges
+        .filter((charge) => charge.responsible === person.id)
+        .map((charge) => charge.amount)
+    );
+    return {
+      ...person,
+      total: personTotal,
+      share: total > 0 ? Math.round((personTotal / total) * 100) : 0,
+    };
+  });
+
+  const creditCharges = charges.filter((charge) => charge.paymentType === "credito");
+  const byCard = state.cards
+    .map((card) => {
+      const cardCharges = creditCharges.filter((charge) => charge.cardId === card.id);
+      return {
+        id: card.id,
+        name: card.name,
+        total: sum(cardCharges.map((charge) => charge.amount)),
+        count: cardCharges.length,
+        charges: cardCharges,
+        dueDate: getCardDueDate(month, card),
+        closingDay: card.closingDay,
+        paymentDay: card.paymentDay,
+      };
+    })
+    .filter((card) => card.total > 0)
+    .sort((left, right) => right.total - left.total);
+
+  return {
+    month,
+    charges,
+    total,
+    byPerson,
+    byCard,
+  };
+}
+
+function getActiveInstallments(month) {
+  return state.purchases
+    .filter((purchase) => purchase.paymentType === "credito" && purchase.installments > 1)
+    .map((purchase) => {
+      const firstChargeMonth = getFirstChargeMonth(purchase);
+      const chargedCount = Math.max(
+        0,
+        Math.min(purchase.installments, monthDiff(firstChargeMonth, month) + 1)
+      );
+      const remainingCount = Math.max(0, purchase.installments - chargedCount);
+      const amounts = splitInstallments(purchase.amount, purchase.installments);
+      const remainingAmount = sum(amounts.slice(chargedCount));
+      const nextChargeMonth =
+        remainingCount > 0 ? addMonths(firstChargeMonth, chargedCount) : "";
+      const card = getCardById(purchase.cardId);
+
+      return {
+        purchase,
+        card,
+        chargedCount,
+        remainingCount,
+        remainingAmount,
+        nextChargeMonth,
+      };
+    })
+    .filter((item) => item.remainingCount > 0)
+    .sort((left, right) => left.nextChargeMonth.localeCompare(right.nextChargeMonth));
+}
+
+function applySummaryFilters(charges) {
+  return charges.filter((charge) => {
+    if (uiState.filters.responsible !== "all" && charge.responsible !== uiState.filters.responsible) {
+      return false;
+    }
+    if (uiState.filters.cardId === "all") {
+      return true;
+    }
+    if (uiState.filters.cardId === "__sem_cartao__") {
+      return !charge.cardId;
+    }
+    return charge.cardId === uiState.filters.cardId;
+  });
 }
 
 function renderAll() {
   renderHeader();
-  renderFormMode();
-  populatePeopleOptions();
-  populateCategoryOptions();
-  renderFilters();
-  renderFormStates();
-  renderStats();
-  renderMonthTable();
-  renderCategoryBreakdown();
-  renderInstallments();
-  renderMonthClosure();
-  renderSettings();
   renderStatus();
+  renderSelectOptions();
+  renderPurchaseFormState();
+  renderPurchasePreview();
+  renderStats();
+  renderMonthCharges();
+  renderCardSummaries();
+  renderCardList();
+  renderInstallmentOverview();
+  renderBudget();
 }
 
 function renderHeader() {
-  dom.householdTitle.textContent = state.settings.householdLabel;
   dom.selectedMonth.value = state.settings.selectedMonth;
 }
 
-function renderFormMode() {
-  dom.segmentButtons.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.formTarget === uiState.activeForm);
-  });
+function renderStatus() {
+  const cardCount = state.cards.length;
+  dom.statusBadge.textContent =
+    cardCount > 0
+      ? `${cardCount} cartão(ões) prontos para THALES e CÁTIA.`
+      : "Cadastre os cartões para o crédito calcular a cobrança sozinho.";
 
-  dom.expenseForm.classList.toggle("hidden", uiState.activeForm !== "expense");
-  dom.installmentForm.classList.toggle("hidden", uiState.activeForm !== "installment");
+  const syncParts = [state.sync.lastSyncMessage];
+  if (state.sync.lastSyncedAt) {
+    syncParts.push(`Última sync: ${formatDateTime(state.sync.lastSyncedAt)}`);
+  }
+  dom.syncStatus.textContent = syncParts.filter(Boolean).join(" ");
 }
 
-function populatePeopleOptions() {
-  const options = state.settings.people
-    .map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.name)}</option>`)
-    .join("");
-
-  const currentExpenseValue = dom.expensePersonSelect.value;
-  const currentInstallmentValue = dom.installmentPersonSelect.value;
-
-  dom.expensePersonSelect.innerHTML = options;
-  dom.installmentPersonSelect.innerHTML = options;
-
-  dom.expensePersonSelect.value =
-    currentExpenseValue || state.settings.people[0]?.id || "person-1";
-  dom.installmentPersonSelect.value =
-    currentInstallmentValue || state.settings.people[0]?.id || "person-1";
-}
-
-function populateCategoryOptions() {
-  dom.categoryOptions.innerHTML = state.settings.categories
-    .map((category) => `<option value="${escapeHtml(category)}"></option>`)
-    .join("");
-}
-
-function renderFilters() {
-  const monthItems = getMonthlyItems(state.settings.selectedMonth);
-  const categories = Array.from(
-    new Set(monthItems.map((item) => item.category).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b));
-  const cards = Array.from(
-    new Set(
-      monthItems
-        .map((item) => item.cardName)
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b));
-
-  dom.searchFilter.value = uiState.filters.search;
-  dom.personFilter.innerHTML = [
-    `<option value="all">Todas</option>`,
-    ...state.settings.people.map(
-      (person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.name)}</option>`
+function renderSelectOptions() {
+  setSelectOptions(
+    dom.responsibleSelect,
+    PEOPLE.map((person) => ({ value: person.id, label: person.name })),
+    dom.purchaseForm.elements.responsible.value || "thales"
+  );
+  setSelectOptions(
+    dom.categorySelect,
+    DEFAULT_CATEGORIES.map((category) => ({ value: category, label: category })),
+    dom.purchaseForm.elements.category.value || DEFAULT_CATEGORIES[0]
+  );
+  setSelectOptions(
+    dom.cardSelect,
+    [{ value: "", label: "Não se aplica" }].concat(
+      state.cards.map((card) => ({ value: card.id, label: card.name }))
     ),
-  ].join("");
-  dom.categoryFilter.innerHTML = [
-    `<option value="all">Todas</option>`,
-    ...categories.map(
-      (category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`
+    dom.purchaseForm.elements.cardId.value || ""
+  );
+  setSelectOptions(
+    dom.summaryResponsibleFilter,
+    [{ value: "all", label: "Todos" }].concat(
+      PEOPLE.map((person) => ({ value: person.id, label: person.name }))
     ),
-  ].join("");
-  dom.cardFilter.innerHTML = [
-    `<option value="all">Todos</option>`,
-    `<option value="__none__">Sem cartao</option>`,
-    ...cards.map((card) => `<option value="${escapeHtml(card)}">${escapeHtml(card)}</option>`),
-  ].join("");
+    uiState.filters.responsible
+  );
+  setSelectOptions(
+    dom.summaryCardFilter,
+    [{ value: "all", label: "Todos" }, { value: "__sem_cartao__", label: "Sem cartão" }].concat(
+      state.cards.map((card) => ({ value: card.id, label: card.name }))
+    ),
+    uiState.filters.cardId
+  );
 
-  dom.personFilter.value = ensureFilterOption(dom.personFilter, uiState.filters.personId);
-  dom.categoryFilter.value = ensureFilterOption(dom.categoryFilter, uiState.filters.category);
-  dom.cardFilter.value = ensureFilterOption(dom.cardFilter, uiState.filters.cardName);
-  dom.typeFilter.value = ensureFilterOption(dom.typeFilter, uiState.filters.type);
-  dom.statusFilter.value = ensureFilterOption(dom.statusFilter, uiState.filters.status);
+  dom.budgetForm.elements.budgetAmount.value = state.settings.budgetAmount || "";
+  dom.budgetForm.elements.budgetOwner.value = state.settings.budgetOwner || "";
 }
 
-function renderFormStates() {
-  const expenseMode = uiState.expenseEditId ? "edit" : "create";
-  const installmentMode = uiState.installmentEditId ? "edit" : "create";
-  const selectedMonthClosed = isMonthClosed(state.settings.selectedMonth);
+function setSelectOptions(select, options, selectedValue) {
+  select.innerHTML = options
+    .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
+    .join("");
+  select.value = options.some((option) => option.value === selectedValue)
+    ? selectedValue
+    : options[0]?.value || "";
+}
 
-  dom.expenseSubmitButton.textContent =
-    expenseMode === "edit" ? "Salvar alteracoes" : "Salvar gasto";
-  dom.installmentSubmitButton.textContent =
-    installmentMode === "edit" ? "Salvar alteracoes" : "Salvar parcelado";
-  dom.expenseCancelButton.classList.toggle("hidden", expenseMode !== "edit");
-  dom.installmentCancelButton.classList.toggle("hidden", installmentMode !== "edit");
-  dom.expenseFormHint.textContent =
-    expenseMode === "edit"
-      ? "Edite o gasto e salve para atualizar a linha existente."
-      : selectedMonthClosed
-        ? "Este mes esta fechado. Ainda e possivel lancar para outro mes aberto."
-        : "Registre compras do dia a dia e deixe o mes de referencia certo.";
-  dom.installmentFormHint.textContent =
-    installmentMode === "edit"
-      ? "Edite a compra parcelada inteira, inclusive cartao e numero de parcelas."
-      : selectedMonthClosed
-        ? "Se a primeira fatura cair em mes fechado, o app vai bloquear a gravacao."
-        : "Use para compras grandes no cartao e acompanhe parcela por parcela.";
+function renderPurchaseFormState() {
+  const editing = Boolean(uiState.purchaseEditId);
+  const isCredit = dom.paymentTypeSelect.value === "credito";
+
+  dom.cardSelect.disabled = !isCredit;
+  dom.installmentsInput.disabled = !isCredit;
+  if (!isCredit) {
+    dom.cardSelect.value = "";
+    dom.installmentsInput.value = "1";
+  }
+
+  dom.purchaseSubmitButton.textContent = editing ? "Salvar alterações" : "Salvar gasto";
+  dom.purchaseCancelButton.classList.toggle("hidden", !editing);
+  dom.purchaseFormHint.textContent =
+    editing
+      ? "Você está editando uma compra já cadastrada."
+      : isCredit && !state.cards.length
+        ? "Cadastre um cartão antes de lançar compras no crédito."
+        : "Se for no crédito, o sistema calcula sozinho o mês de cobrança.";
+
+  dom.cardSubmitButton.textContent = uiState.cardEditId ? "Salvar alterações" : "Salvar cartão";
+  dom.cardCancelButton.classList.toggle("hidden", !uiState.cardEditId);
+  dom.cardFormHint.textContent = uiState.cardEditId
+    ? "Editar um cartão recalcula as compras ligadas a ele."
+    : "O fechamento define em qual mês cada compra entra.";
+}
+
+function renderPurchasePreview() {
+  const draft = getPurchaseDraftFromForm();
+  if (!draft.date || draft.amount <= 0) {
+    dom.purchasePreview.innerHTML = `
+      <strong>Prévia da cobrança</strong>
+      <p>Preencha data, valor e tipo de pagamento para ver como esse gasto vai entrar no mês.</p>
+    `;
+    return;
+  }
+
+  if (draft.paymentType !== "credito") {
+    dom.purchasePreview.innerHTML = `
+      <strong>Prévia da cobrança</strong>
+      <p>Esse gasto entra em <strong>${escapeHtml(formatMonthLabel(draft.date.slice(0, 7)))}</strong>, no próprio mês da compra.</p>
+    `;
+    return;
+  }
+
+  const card = getCardById(draft.cardId);
+  if (!card) {
+    dom.purchasePreview.innerHTML = `
+      <strong>Prévia da cobrança</strong>
+      <p>Selecione um cartão para o sistema calcular o mês da cobrança e o vencimento da fatura.</p>
+    `;
+    return;
+  }
+
+  const firstChargeMonth = getFirstChargeMonth(draft);
+  const dueDate = getCardDueDate(firstChargeMonth, card);
+  const lastChargeMonth = addMonths(firstChargeMonth, draft.installments - 1);
+  dom.purchasePreview.innerHTML = `
+    <strong>Prévia da cobrança</strong>
+    <p>Primeira cobrança em <strong>${escapeHtml(formatMonthLabel(firstChargeMonth))}</strong>, com vencimento em <strong>${escapeHtml(formatDate(dueDate))}</strong>.</p>
+    <p>${draft.installments > 1 ? `Última parcela em ${escapeHtml(formatMonthLabel(lastChargeMonth))}.` : "Compra à vista no crédito."}</p>
+  `;
 }
 
 function renderStats() {
   const summary = getMonthlySummary(state.settings.selectedMonth);
-  const budget = state.settings.monthlyBudget || 0;
-  const budgetUsage = budget > 0 ? (summary.monthTotal / budget) * 100 : 0;
-  const installmentBalance = summary.remainingInstallmentsAmount;
-  const paidInstallmentAmount = summary.paidInstallmentsAmount;
+  const budgetAmount = state.settings.budgetAmount;
+  const budgetLeft = budgetAmount > 0 ? budgetAmount - summary.total : 0;
+  const budgetLabel =
+    budgetAmount > 0
+      ? `Orçamento de ${state.settings.budgetOwner ? getResponsibleName(state.settings.budgetOwner) : "casa"}`
+      : "Sem orçamento";
 
   const stats = [
     {
       label: "Total do mês",
-      value: formatCurrency(summary.monthTotal),
-      support: `${summary.items.length} lançamentos no mês`,
-      progress: budget > 0 ? Math.min(100, budgetUsage) : 0,
+      value: formatCurrency(summary.total),
+      support: `${summary.charges.length} cobranças em ${formatMonthLabel(state.settings.selectedMonth)}`,
+      progress: budgetAmount > 0 ? Math.min(100, Math.round((summary.total / budgetAmount) * 100)) : 30,
     },
-    {
-      label: "Orçamento usado",
-      value: budget > 0 ? `${Math.round(budgetUsage)}%` : "Sem meta",
-      support:
-        budget > 0
-          ? `${formatCurrency(Math.max(0, budget - summary.monthTotal))} ainda livres`
-          : "Defina um orçamento para acompanhar",
-      progress: Math.min(100, budgetUsage || 0),
-    },
-    {
-      label: "Parcelados em aberto",
-      value: formatCurrency(installmentBalance),
-      support: `${summary.openInstallments} compras ainda ativas`,
-      progress:
-        installmentBalance + paidInstallmentAmount > 0
-          ? Math.round(
-              (paidInstallmentAmount / (installmentBalance + paidInstallmentAmount)) * 100
-            )
-          : 0,
-    },
-    {
-      label: "Parcelados já pagos",
-      value: formatCurrency(paidInstallmentAmount),
-      support: `${summary.paidInstallmentsCount} parcelas registradas como pagas`,
-      progress:
-        installmentBalance + paidInstallmentAmount > 0
-          ? Math.round(
-              (paidInstallmentAmount / (installmentBalance + paidInstallmentAmount)) * 100
-            )
-          : 0,
-    },
-    ...summary.byPerson.map((item) => ({
-      label: item.name,
-      value: formatCurrency(item.total),
-      support: `${item.share}% do total da casa neste mês`,
-      progress: item.share,
+    ...summary.byPerson.map((person) => ({
+      label: person.name,
+      value: formatCurrency(person.total),
+      support: `${person.share}% do total do mês`,
+      progress: person.share,
     })),
+    {
+      label: budgetLabel,
+      value: budgetAmount > 0 ? formatCurrency(budgetAmount) : "Opcional",
+      support:
+        budgetAmount > 0
+          ? `${budgetLeft >= 0 ? "Sobra" : "Passou"} ${formatCurrency(Math.abs(budgetLeft))}`
+          : "Você pode deixar sem orçamento se preferir",
+      progress: budgetAmount > 0 ? Math.min(100, Math.round((summary.total / budgetAmount) * 100)) : 0,
+    },
   ];
 
   dom.statsGrid.innerHTML = stats
@@ -664,7 +762,7 @@ function renderStats() {
           <strong class="stat-value">${escapeHtml(stat.value)}</strong>
           <span class="stat-support">${escapeHtml(stat.support)}</span>
           <div class="progress-shell">
-            <div class="progress-fill" style="width: ${Math.min(100, Math.max(0, stat.progress || 0))}%"></div>
+            <div class="progress-fill" style="width: ${Math.max(0, Math.min(100, stat.progress || 0))}%"></div>
           </div>
         </article>
       `
@@ -672,246 +770,221 @@ function renderStats() {
     .join("");
 }
 
-function renderMonthTable() {
+function renderMonthCharges() {
   const summary = getMonthlySummary(state.settings.selectedMonth);
+  const filteredCharges = applySummaryFilters(summary.charges);
+  const filteredTotal = sum(filteredCharges.map((charge) => charge.amount));
 
-  if (!summary.items.length) {
-    dom.monthTable.innerHTML = `
+  dom.monthSummaryText.textContent =
+    filteredCharges.length > 0
+      ? `${filteredCharges.length} cobrança(s) visíveis, somando ${formatCurrency(filteredTotal)}.`
+      : `Nenhum gasto encontrado para ${formatMonthLabel(state.settings.selectedMonth)} com os filtros atuais.`;
+
+  if (!filteredCharges.length) {
+    dom.monthCharges.innerHTML = `
       <div class="empty-state">
-        <p>Nenhum lançamento encontrado para ${formatMonthLabel(state.settings.selectedMonth)}.</p>
+        <p>Quando vocês começarem a lançar compras, o mês aparece aqui já organizado pela cobrança certa.</p>
       </div>
     `;
     return;
   }
 
-  dom.monthTable.innerHTML = `
+  dom.monthCharges.innerHTML = `
     <table>
       <thead>
         <tr>
-          <th>Descrição</th>
-          <th>Data</th>
           <th>Categoria</th>
-          <th>Pessoa</th>
-          <th>Status</th>
+          <th>Responsável</th>
+          <th>Cobrança</th>
           <th>Valor</th>
           <th>Ação</th>
         </tr>
       </thead>
       <tbody>
-        ${summary.items
-          .map((item) => {
-            const canDelete = item.source === "expense";
-            return `
+        ${filteredCharges
+          .map(
+            (charge) => `
               <tr>
                 <td>
-                  <strong>${escapeHtml(item.description)}</strong>
-                  <span class="installment-subtitle">${escapeHtml(item.detail)}</span>
+                  <strong>${escapeHtml(charge.category)}</strong>
+                  <span class="muted-line">${escapeHtml(charge.notes || "Sem observação")}</span>
                 </td>
-                <td>${escapeHtml(formatDate(item.date))}</td>
-                <td>${escapeHtml(item.category)}</td>
-                <td>${escapeHtml(item.personName)}</td>
-                <td>${renderTagHtml(item.statusTone, item.status)}</td>
-                <td class="amount-cell">${escapeHtml(formatCurrency(item.amount))}</td>
+                <td>${escapeHtml(charge.responsibleLabel)}</td>
+                <td>${escapeHtml(charge.detail)}</td>
+                <td class="amount-cell">${escapeHtml(formatCurrency(charge.amount))}</td>
                 <td>
-                  ${
-                    canDelete
-                      ? `<button class="button button-secondary table-action" type="button" data-action="delete-expense" data-id="${escapeHtml(item.id)}">Excluir</button>`
-                      : `<span class="tag tag-neutral">Gerencie ao lado</span>`
-                  }
+                  <button class="button button-secondary" type="button" data-action="edit-purchase" data-id="${escapeHtml(charge.purchaseId)}">Editar</button>
+                  <button class="button button-secondary" type="button" data-action="delete-purchase" data-id="${escapeHtml(charge.purchaseId)}">Excluir</button>
                 </td>
               </tr>
-            `;
-          })
+            `
+          )
           .join("")}
       </tbody>
     </table>
   `;
 }
 
-function renderCategoryBreakdown() {
-  const summary = getMonthlySummary(state.settings.selectedMonth);
-
-  if (!summary.categoryTotals.length) {
-    dom.categoryBreakdown.innerHTML = `
+function renderCardSummaries() {
+  const cards = getMonthlySummary(state.settings.selectedMonth).byCard;
+  if (!cards.length) {
+    dom.cardSummaries.innerHTML = `
       <div class="empty-state">
-        <p>As categorias vão aparecer aqui conforme os gastos forem entrando.</p>
+        <p>Os resumos de cartão aparecem assim que existirem compras no crédito cobradas no mês.</p>
       </div>
     `;
     return;
   }
 
-  dom.categoryBreakdown.innerHTML = summary.categoryTotals
-    .map((category) => {
-      const width = summary.monthTotal > 0 ? (category.total / summary.monthTotal) * 100 : 0;
-      return `
-        <div class="category-row">
-          <div>
-            <div class="category-title">
-              <strong>${escapeHtml(category.name)}</strong>
-              <span>${escapeHtml(formatCurrency(category.total))}</span>
+  dom.cardSummaries.innerHTML = cards
+    .map(
+      (card) => `
+        <article class="card-summary">
+          <div class="card-summary-head">
+            <div>
+              <strong>${escapeHtml(card.name)}</strong>
+              <span class="muted-line">Fechamento dia ${escapeHtml(String(card.closingDay))} • pagamento dia ${escapeHtml(String(card.paymentDay))}</span>
             </div>
-            <div class="mini-bar"><span style="width: ${Math.min(100, width)}%"></span></div>
+            <span class="tag tag-neutral">${escapeHtml(formatCurrency(card.total))}</span>
           </div>
-          <span class="tag tag-neutral">${escapeHtml(category.share)} do mês</span>
-        </div>
-      `;
-    })
+          <div class="mini-stat-grid">
+            <div class="mini-stat">
+              <span>Cobranças</span>
+              <strong>${escapeHtml(String(card.count))}</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Vencimento</span>
+              <strong>${escapeHtml(formatDate(card.dueDate))}</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Mês</span>
+              <strong>${escapeHtml(formatMonthLabel(state.settings.selectedMonth))}</strong>
+            </div>
+          </div>
+        </article>
+      `
+    )
     .join("");
 }
 
-function renderInstallments() {
-  if (!state.installments.length) {
-    dom.installmentsList.innerHTML = `
+function renderCardList() {
+  if (!state.cards.length) {
+    dom.cardList.innerHTML = `
       <div class="empty-state">
-        <p>As compras parceladas vão aparecer aqui com o progresso pago e o saldo restante.</p>
+        <p>Cadastre os cartões que vocês usam e eu passo a calcular automaticamente o mês da cobrança.</p>
       </div>
     `;
     return;
   }
 
-  const selectedMonth = state.settings.selectedMonth;
-  const cards = state.installments
+  dom.cardList.innerHTML = state.cards
     .slice()
-    .sort((a, b) => {
-      const aNext = getNextPendingMonth(a) || "9999-12";
-      const bNext = getNextPendingMonth(b) || "9999-12";
-      return aNext.localeCompare(bNext);
-    })
-    .map((installment) => {
-      const personName = getPersonName(installment.personId);
-      const paidAmount = getPaidAmount(installment);
-      const remainingAmount = Math.max(0, installment.totalAmount - paidAmount);
-      const nextIndex = installment.paidInstallments + 1;
-      const nextMonth = getNextPendingMonth(installment);
-      const currentMonthIndex = monthDiff(installment.firstMonth, selectedMonth) + 1;
-      const thisMonthAmount =
-        currentMonthIndex >= 1 && currentMonthIndex <= installment.installmentCount
-          ? installment.installmentAmounts[currentMonthIndex - 1]
-          : 0;
-      const progress = Math.round(
-        (installment.paidInstallments / installment.installmentCount) * 100
-      );
-
-      let tagText = "Ativo";
-      let tagTone = "neutral";
-
-      if (installment.paidInstallments >= installment.installmentCount) {
-        tagText = "Concluído";
-        tagTone = "success";
-      } else if (nextMonth && nextMonth < selectedMonth) {
-        tagText = "Parcela pendente";
-        tagTone = "danger";
-      } else if (nextMonth === selectedMonth) {
-        tagText = "Entra neste mês";
-        tagTone = "warning";
-      }
-
-      return `
-        <article class="installment-card">
-          <div class="installment-head">
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map(
+      (card) => `
+        <article class="info-card">
+          <div class="card-row-head">
             <div>
-              <strong>${escapeHtml(installment.description)}</strong>
-              <div class="installment-subtitle">
-                ${escapeHtml(personName)} • ${escapeHtml(installment.cardName)} • ${escapeHtml(
-        installment.category
-      )}
-              </div>
+              <strong>${escapeHtml(card.name)}</strong>
+              <span class="muted-line">Fechamento dia ${escapeHtml(String(card.closingDay))} • pagamento dia ${escapeHtml(String(card.paymentDay))}</span>
             </div>
-            ${renderTagHtml(tagTone, tagText)}
+            <span class="tag tag-neutral">${escapeHtml(String(getCardUsageCount(card.id)))} compra(s)</span>
           </div>
-
-          <div class="installment-meta">
-            <span>Compra em ${escapeHtml(formatDate(installment.purchaseDate))}</span>
-            <span>${escapeHtml(installment.paidInstallments.toString())}/${escapeHtml(
-        installment.installmentCount.toString()
-      )} parcelas pagas</span>
-          </div>
-
-          <div class="installment-grid">
-            <div>
-              <span>Valor total</span>
-              <strong>${escapeHtml(formatCurrency(installment.totalAmount))}</strong>
-            </div>
-            <div>
-              <span>Já pago</span>
-              <strong>${escapeHtml(formatCurrency(paidAmount))}</strong>
-            </div>
-            <div>
-              <span>Falta pagar</span>
-              <strong>${escapeHtml(formatCurrency(remainingAmount))}</strong>
-            </div>
-          </div>
-
-          <div class="installment-grid">
-            <div>
-              <span>Parcela do mês selecionado</span>
-              <strong>${escapeHtml(thisMonthAmount ? formatCurrency(thisMonthAmount) : "Sem cobrança")}</strong>
-            </div>
-            <div>
-              <span>Próxima parcela</span>
-              <strong>${escapeHtml(nextMonth ? `${nextIndex}/${installment.installmentCount} em ${formatMonthLabel(nextMonth)}` : "Finalizado")}</strong>
-            </div>
-            <div>
-              <span>Observação</span>
-              <strong>${escapeHtml(installment.notes || "Sem observação")}</strong>
-            </div>
-          </div>
-
-          <div class="progress-shell" aria-hidden="true">
-            <div class="progress-fill" style="width: ${progress}%"></div>
-          </div>
-
-          <div class="installment-actions">
-            <div class="installment-button-group">
-              <button class="ghost-button" type="button" data-action="decrement-paid" data-id="${escapeHtml(
-                installment.id
-              )}">
-                Voltar 1 parcela
-              </button>
-              <button class="ghost-button" type="button" data-action="increment-paid" data-id="${escapeHtml(
-                installment.id
-              )}">
-                Marcar 1 parcela paga
-              </button>
-            </div>
-            <button class="ghost-button" type="button" data-action="delete-installment" data-id="${escapeHtml(
-              installment.id
-            )}">
-              Excluir compra
-            </button>
+          <div class="card-row-actions">
+            <button class="ghost-button" type="button" data-action="edit-card" data-id="${escapeHtml(card.id)}">Editar</button>
+            <button class="ghost-button" type="button" data-action="delete-card" data-id="${escapeHtml(card.id)}">Excluir</button>
           </div>
         </article>
-      `;
-    });
-
-  dom.installmentsList.innerHTML = cards.join("");
+      `
+    )
+    .join("");
 }
 
-function renderSettings() {
-  dom.settingsForm.elements.householdLabel.value = state.settings.householdLabel;
-  dom.settingsForm.elements.personOne.value = state.settings.people[0]?.name || "Pessoa 1";
-  dom.settingsForm.elements.personTwo.value = state.settings.people[1]?.name || "Pessoa 2";
-  dom.settingsForm.elements.monthlyBudget.value = state.settings.monthlyBudget || 0;
-  dom.settingsForm.elements.scriptUrl.value = state.sync.scriptUrl || "";
-  dom.settingsForm.elements.autoSync.checked = Boolean(state.sync.autoSync);
+function renderInstallmentOverview() {
+  const items = getActiveInstallments(state.settings.selectedMonth);
+  if (!items.length) {
+    dom.installmentOverview.innerHTML = `
+      <div class="empty-state">
+        <p>Quando entrarem compras parceladas, você vai ver aqui o que ainda falta cobrar.</p>
+      </div>
+    `;
+    return;
+  }
+
+  dom.installmentOverview.innerHTML = items
+    .map(
+      (item) => `
+        <article class="info-card">
+          <div class="installment-row-head">
+            <div>
+              <strong>${escapeHtml(item.purchase.category)} • ${escapeHtml(getResponsibleName(item.purchase.responsible))}</strong>
+              <span class="muted-line">${escapeHtml(item.card?.name || "Cartão não encontrado")} • ${escapeHtml(item.chargedCount.toString())}/${escapeHtml(item.purchase.installments.toString())} já cobradas</span>
+            </div>
+            <span class="tag tag-warning">${escapeHtml(`${item.remainingCount} restantes`)}</span>
+          </div>
+          <div class="mini-stat-grid">
+            <div class="mini-stat">
+              <span>Valor total</span>
+              <strong>${escapeHtml(formatCurrency(item.purchase.amount))}</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Falta cobrar</span>
+              <strong>${escapeHtml(formatCurrency(item.remainingAmount))}</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Próxima cobrança</span>
+              <strong>${escapeHtml(formatMonthLabel(item.nextChargeMonth))}</strong>
+            </div>
+          </div>
+        </article>
+      `
+    )
+    .join("");
 }
 
-function renderStatus() {
-  dom.dataModeBadge.textContent = state.seededDemo
-    ? "Usando dados de exemplo para visualização."
-    : "Usando seus dados reais neste navegador.";
+function renderBudget() {
+  const amount = state.settings.budgetAmount;
+  const owner = state.settings.budgetOwner;
+  const monthTotal = getMonthlySummary(state.settings.selectedMonth).total;
 
-  const syncParts = [];
-
-  if (state.sync.lastSyncMessage) {
-    syncParts.push(state.sync.lastSyncMessage);
+  if (!amount) {
+    dom.budgetSummary.innerHTML = `
+      <strong>Sem orçamento definido</strong>
+      <p>Se quiser, você pode colocar um valor e escolher se o orçamento é de THALES, de CÁTIA ou apenas da casa.</p>
+    `;
+    return;
   }
 
-  if (state.sync.lastSyncedAt) {
-    syncParts.push(`Última sync: ${formatDateTime(state.sync.lastSyncedAt)}`);
-  }
+  const difference = amount - monthTotal;
+  dom.budgetSummary.innerHTML = `
+    <strong>${escapeHtml(owner ? `Orçamento de ${getResponsibleName(owner)}` : "Orçamento da casa")}</strong>
+    <p>Valor configurado: ${escapeHtml(formatCurrency(amount))}</p>
+    <p>${escapeHtml(difference >= 0 ? "Sobra atual" : "Excedente atual")}: ${escapeHtml(formatCurrency(Math.abs(difference)))}</p>
+  `;
+}
 
-  dom.syncStatus.textContent = syncParts.join(" ") || "Sincronização ainda não configurada.";
+function getPurchaseDraftFromForm() {
+  return normalizePurchase({
+    id: cleanText(dom.purchaseForm.elements.entryId.value) || createId("draft"),
+    responsible: dom.purchaseForm.elements.responsible.value || "thales",
+    date: dom.purchaseForm.elements.date.value || getCurrentDate(),
+    amount: dom.purchaseForm.elements.amount.value,
+    category: dom.purchaseForm.elements.category.value || DEFAULT_CATEGORIES[0],
+    paymentType: dom.paymentTypeSelect.value || "pix",
+    cardId: dom.cardSelect.value,
+    installments: dom.installmentsInput.value || 1,
+    notes: dom.purchaseForm.elements.notes.value,
+    updatedAt: nowIso(),
+  }) || {
+    responsible: "thales",
+    date: getCurrentDate(),
+    amount: 0,
+    category: DEFAULT_CATEGORIES[0],
+    paymentType: dom.paymentTypeSelect.value || "pix",
+    cardId: dom.cardSelect.value,
+    installments: clampInteger(dom.installmentsInput.value, 1, 48, 1),
+    notes: cleanText(dom.purchaseForm.elements.notes.value),
+  };
 }
 
 function handleMonthChange() {
@@ -920,187 +993,237 @@ function handleMonthChange() {
   }
 
   state.settings.selectedMonth = dom.selectedMonth.value;
-  state.settings.updatedAt = nowIso();
   persistState();
 }
 
-function handleExpenseSubmit(event) {
-  event.preventDefault();
-  prepareForRealData();
+function handleFilterChange() {
+  uiState.filters.responsible = dom.summaryResponsibleFilter.value;
+  uiState.filters.cardId = dom.summaryCardFilter.value;
+  renderAll();
+}
 
-  const form = new FormData(dom.expenseForm);
-  const category = addCategoryIfNeeded(form.get("category"));
-  const expense = normalizeExpense({
-    id: createId("exp"),
+function clearSummaryFilters() {
+  uiState.filters = {
+    responsible: "all",
+    cardId: "all",
+  };
+  renderAll();
+}
+
+function handlePurchaseSubmit(event) {
+  event.preventDefault();
+
+  const form = new FormData(dom.purchaseForm);
+  const paymentType = form.get("paymentType");
+  const cardId = cleanText(form.get("cardId"));
+  const installments =
+    paymentType === "credito" ? clampInteger(form.get("installments"), 1, 48, 1) : 1;
+
+  if (paymentType === "credito" && !cardId) {
+    setSyncMessage("Selecione um cartão para compras no crédito.", false);
+    renderStatus();
+    return;
+  }
+
+  const purchase = normalizePurchase({
+    id: cleanText(form.get("entryId")) || createId("purchase"),
+    responsible: form.get("responsible"),
     date: form.get("date"),
-    referenceMonth: form.get("referenceMonth"),
-    description: form.get("description"),
-    category,
     amount: form.get("amount"),
-    personId: form.get("personId"),
-    paymentMethod: form.get("paymentMethod"),
+    category: form.get("category"),
+    paymentType,
+    cardId,
+    installments,
     notes: form.get("notes"),
     updatedAt: nowIso(),
   });
 
-  if (!expense) {
+  if (!purchase) {
     setSyncMessage("Não foi possível salvar esse gasto.", false);
     renderStatus();
     return;
   }
 
-  state.expenses.unshift(expense);
-  state.seededDemo = false;
+  if (uiState.purchaseEditId) {
+    state.purchases = state.purchases.map((item) => (item.id === purchase.id ? purchase : item));
+    setSyncMessage("Gasto atualizado no painel local.", false);
+  } else {
+    state.purchases.unshift(purchase);
+    setSyncMessage("Gasto salvo no painel local.", false);
+  }
+
+  cancelPurchaseEdit({ silent: true });
   persistState();
-  dom.expenseForm.reset();
-  dom.expenseForm.elements.date.value = getCurrentDate();
-  dom.expenseForm.elements.referenceMonth.value = state.settings.selectedMonth;
-  dom.expenseForm.elements.personId.value = state.settings.people[0]?.id || "person-1";
-  setSyncMessage("Gasto salvo com sucesso.", false);
-  renderAll();
 }
 
-function handleInstallmentSubmit(event) {
-  event.preventDefault();
-  prepareForRealData();
-
-  const form = new FormData(dom.installmentForm);
-  const category = addCategoryIfNeeded(form.get("category"));
-  const installment = normalizeInstallment({
-    id: createId("inst"),
-    purchaseDate: form.get("purchaseDate"),
-    description: form.get("description"),
-    category,
-    totalAmount: form.get("totalAmount"),
-    installmentCount: form.get("installmentCount"),
-    paidInstallments: 0,
-    firstMonth: form.get("firstMonth"),
-    personId: form.get("personId"),
-    cardName: form.get("cardName"),
-    notes: form.get("notes"),
-    updatedAt: nowIso(),
-  });
-
-  if (!installment) {
-    setSyncMessage("Não foi possível salvar essa compra parcelada.", false);
-    renderStatus();
-    return;
-  }
-
-  state.installments.unshift(installment);
-  state.seededDemo = false;
-  persistState();
-  dom.installmentForm.reset();
-  dom.installmentForm.elements.purchaseDate.value = getCurrentDate();
-  dom.installmentForm.elements.firstMonth.value = state.settings.selectedMonth;
-  dom.installmentForm.elements.personId.value = state.settings.people[0]?.id || "person-1";
-  setSyncMessage("Compra parcelada salva com sucesso.", false);
-  renderAll();
-}
-
-function handleSettingsSubmit(event) {
-  event.preventDefault();
-
-  const form = new FormData(dom.settingsForm);
-  state.settings.householdLabel =
-    cleanText(form.get("householdLabel")) || "Painel financeiro da casa";
-  state.settings.people = [
-    {
-      id: state.settings.people[0]?.id || "person-1",
-      name: cleanText(form.get("personOne")) || "Pessoa 1",
-    },
-    {
-      id: state.settings.people[1]?.id || "person-2",
-      name: cleanText(form.get("personTwo")) || "Pessoa 2",
-    },
-  ];
-  state.settings.monthlyBudget = normalizeMoney(form.get("monthlyBudget"));
-  state.settings.updatedAt = nowIso();
-  state.sync.scriptUrl = cleanText(form.get("scriptUrl"));
-  state.sync.autoSync = Boolean(form.get("autoSync"));
-  state.seededDemo = false;
-  persistState();
-  setSyncMessage("Configurações salvas.", false);
-  renderAll();
-}
-
-function handleMonthTableClick(event) {
-  const button = event.target.closest("[data-action='delete-expense']");
-  if (!button) {
-    return;
-  }
-
-  const expenseId = button.dataset.id;
-  const expense = state.expenses.find((item) => item.id === expenseId);
-  if (!expense) {
-    return;
-  }
-
-  if (!window.confirm(`Excluir o gasto "${expense.description}"?`)) {
-    return;
-  }
-
-  deleteExpense(expenseId);
-  setSyncMessage("Gasto removido.", false);
-  renderAll();
-}
-
-function handleInstallmentListClick(event) {
+function handleMonthChargesClick(event) {
   const button = event.target.closest("[data-action]");
   if (!button) {
     return;
   }
 
-  const installmentId = button.dataset.id;
-  const installment = state.installments.find((item) => item.id === installmentId);
-  if (!installment) {
+  const purchaseId = button.dataset.id;
+  const purchase = state.purchases.find((item) => item.id === purchaseId);
+  if (!purchase) {
     return;
   }
 
-  if (button.dataset.action === "increment-paid") {
-    installment.paidInstallments = Math.min(
-      installment.installmentCount,
-      installment.paidInstallments + 1
-    );
-    installment.updatedAt = nowIso();
+  if (button.dataset.action === "edit-purchase") {
+    startPurchaseEdit(purchaseId);
+    return;
+  }
+
+  if (
+    button.dataset.action === "delete-purchase" &&
+    window.confirm("Excluir essa compra por completo?")
+  ) {
+    state.purchases = state.purchases.filter((item) => item.id !== purchaseId);
+    state.deletions.purchases = upsertDeletion(state.deletions.purchases, purchaseId);
+    cancelPurchaseEdit({ silent: true });
+    setSyncMessage("Compra excluída do painel local.", false);
     persistState();
-    setSyncMessage("Parcela marcada como paga.", false);
-    renderAll();
+  }
+}
+
+function startPurchaseEdit(purchaseId) {
+  const purchase = state.purchases.find((item) => item.id === purchaseId);
+  if (!purchase) {
     return;
   }
 
-  if (button.dataset.action === "decrement-paid") {
-    installment.paidInstallments = Math.max(0, installment.paidInstallments - 1);
-    installment.updatedAt = nowIso();
-    persistState();
-    setSyncMessage("Última parcela marcada como pendente.", false);
-    renderAll();
-    return;
-  }
+  uiState.purchaseEditId = purchase.id;
+  dom.purchaseForm.elements.entryId.value = purchase.id;
+  dom.purchaseForm.elements.responsible.value = purchase.responsible;
+  dom.purchaseForm.elements.date.value = purchase.date;
+  dom.purchaseForm.elements.amount.value = purchase.amount;
+  dom.purchaseForm.elements.category.value = purchase.category;
+  dom.paymentTypeSelect.value = purchase.paymentType;
+  dom.cardSelect.value = purchase.cardId || "";
+  dom.installmentsInput.value = purchase.installments;
+  dom.purchaseForm.elements.notes.value = purchase.notes || "";
+  renderAll();
+}
 
-  if (button.dataset.action === "delete-installment") {
-    if (!window.confirm(`Excluir a compra parcelada "${installment.description}"?`)) {
-      return;
-    }
-
-    deleteInstallment(installmentId);
-    setSyncMessage("Compra parcelada removida.", false);
+function cancelPurchaseEdit(options = {}) {
+  uiState.purchaseEditId = "";
+  dom.purchaseForm.reset();
+  dom.purchaseForm.elements.entryId.value = "";
+  dom.purchaseForm.elements.responsible.value = "thales";
+  dom.purchaseForm.elements.date.value = getCurrentDate();
+  dom.purchaseForm.elements.category.value = DEFAULT_CATEGORIES[0];
+  dom.paymentTypeSelect.value = "pix";
+  dom.cardSelect.value = "";
+  dom.installmentsInput.value = "1";
+  if (!options.silent) {
     renderAll();
   }
 }
 
-function deleteExpense(expenseId) {
-  state.expenses = state.expenses.filter((item) => item.id !== expenseId);
-  state.deletions.expenses = upsertDeletion(state.deletions.expenses, expenseId);
+function handleCardSubmit(event) {
+  event.preventDefault();
+
+  const form = new FormData(dom.cardForm);
+  const card = normalizeCard({
+    id: cleanText(form.get("entryId")) || createId("card"),
+    name: form.get("name"),
+    closingDay: form.get("closingDay"),
+    paymentDay: form.get("paymentDay"),
+    updatedAt: nowIso(),
+  });
+
+  if (!card) {
+    setSyncMessage("Não foi possível salvar esse cartão.", false);
+    renderStatus();
+    return;
+  }
+
+  if (uiState.cardEditId) {
+    state.cards = state.cards.map((item) => (item.id === card.id ? card : item));
+    setSyncMessage("Cartão atualizado no painel local.", false);
+  } else {
+    state.cards.push(card);
+    setSyncMessage("Cartão salvo no painel local.", false);
+  }
+
+  cancelCardEdit({ silent: true });
   persistState();
 }
 
-function deleteInstallment(installmentId) {
-  state.installments = state.installments.filter((item) => item.id !== installmentId);
-  state.deletions.installments = upsertDeletion(
-    state.deletions.installments,
-    installmentId
-  );
+function handleCardListClick(event) {
+  const button = event.target.closest("[data-action]");
+  if (!button) {
+    return;
+  }
+
+  const cardId = button.dataset.id;
+  const card = getCardById(cardId);
+  if (!card) {
+    return;
+  }
+
+  if (button.dataset.action === "edit-card") {
+    startCardEdit(cardId);
+    return;
+  }
+
+  if (button.dataset.action === "delete-card") {
+    if (getCardUsageCount(cardId) > 0) {
+      setSyncMessage("Esse cartão já está ligado a compras. Edite as compras antes de excluir.", false);
+      renderStatus();
+      return;
+    }
+
+    if (!window.confirm(`Excluir o cartão "${card.name}"?`)) {
+      return;
+    }
+
+    state.cards = state.cards.filter((item) => item.id !== cardId);
+    state.deletions.cards = upsertDeletion(state.deletions.cards, cardId);
+    cancelCardEdit({ silent: true });
+    setSyncMessage("Cartão excluído do painel local.", false);
+    persistState();
+  }
+}
+
+function startCardEdit(cardId) {
+  const card = getCardById(cardId);
+  if (!card) {
+    return;
+  }
+
+  uiState.cardEditId = card.id;
+  dom.cardForm.elements.entryId.value = card.id;
+  dom.cardForm.elements.name.value = card.name;
+  dom.cardForm.elements.closingDay.value = card.closingDay;
+  dom.cardForm.elements.paymentDay.value = card.paymentDay;
+  renderAll();
+}
+
+function cancelCardEdit(options = {}) {
+  uiState.cardEditId = "";
+  dom.cardForm.reset();
+  dom.cardForm.elements.entryId.value = "";
+  if (!options.silent) {
+    renderAll();
+  }
+}
+
+function handleBudgetSubmit(event) {
+  event.preventDefault();
+
+  const form = new FormData(dom.budgetForm);
+  state.settings.budgetAmount = normalizeMoney(form.get("budgetAmount"));
+  state.settings.budgetOwner = cleanText(form.get("budgetOwner"));
+  state.settings.updatedAt = nowIso();
+  setSyncMessage("Orçamento salvo no painel local.", false);
+  persistState();
+}
+
+function clearBudget() {
+  state.settings.budgetAmount = 0;
+  state.settings.budgetOwner = "";
+  state.settings.updatedAt = nowIso();
+  setSyncMessage("Orçamento limpo no painel local.", false);
   persistState();
 }
 
@@ -1108,141 +1231,29 @@ function upsertDeletion(list, id) {
   return normalizeDeletionList([...list, { id, deletedAt: nowIso() }]);
 }
 
-function clearDemoData() {
-  if (
-    !window.confirm(
-      "Isso vai remover todos os dados atuais deste navegador e deixar o painel vazio. Deseja continuar?"
-    )
-  ) {
-    return;
+function setSyncMessage(message, markSynced) {
+  state.sync.lastSyncMessage = message;
+  if (markSynced) {
+    state.sync.lastSyncedAt = nowIso();
   }
-
-  state = createEmptyState();
-  hydrateFormDefaults();
-  persistState();
-  setSyncMessage("Painel limpo. Agora você pode começar com os seus dados.", false);
-  renderAll();
 }
 
-function prepareForRealData() {
-  if (!state.seededDemo) {
-    return;
-  }
-
-  state.expenses = [];
-  state.installments = [];
-  state.deletions = {
-    expenses: [],
-    installments: [],
-  };
-  state.seededDemo = false;
-  state.sync.lastSyncMessage = "Dados de exemplo removidos para começar seu uso real.";
-}
-
-function exportState() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `controle-casa-${state.settings.selectedMonth}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function importStateFromFile(event) {
-  const [file] = event.target.files || [];
-  if (!file) {
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const imported = normalizeState(JSON.parse(String(reader.result)));
-      state = mergeStates(state, imported);
-      state.seededDemo = false;
-      persistState();
-      setSyncMessage("Arquivo importado com sucesso.", false);
-      renderAll();
-    } catch (error) {
-      console.error(error);
-      setSyncMessage("Não consegui importar esse arquivo JSON.", true);
-      renderStatus();
-    } finally {
-      dom.importFile.value = "";
-    }
-  };
-  reader.readAsText(file);
-}
-
-async function syncWithGoogle(mode) {
-  const scriptUrl = cleanText(state.sync.scriptUrl);
-
-  if (!scriptUrl) {
-    setSyncMessage(
-      "Defina a URL do Apps Script nas configurações para usar a sincronização.",
-      true
-    );
-    renderStatus();
-    return;
-  }
-
-  if (mode === "push" && state.seededDemo) {
-    setSyncMessage(
-      "Os dados atuais ainda são de exemplo. Use Limpar dados de exemplo ou lance um gasto real antes de enviar ao Google.",
-      true
-    );
-    renderStatus();
-    return;
-  }
-
+async function syncWithGoogle() {
   try {
-    setSyncMessage("Sincronizando com o Google Sheets...", false);
+    setSyncMessage("Sincronizando com Google Sheets...", false);
     renderStatus();
 
-    if (mode === "pull") {
-      const remoteState = await fetchRemoteState(scriptUrl);
-      state = state.seededDemo ? normalizeState(remoteState) : mergeStates(state, remoteState);
-      state.sync.scriptUrl = scriptUrl;
-      state.seededDemo = false;
-      persistState({ skipAutoSync: true });
-      setSyncMessage("Dados puxados do Google com sucesso.", false, true);
-      renderAll();
-      return;
-    }
-
-    if (mode === "merge" && state.seededDemo) {
-      const remoteState = await fetchRemoteState(scriptUrl);
-      state = normalizeState(remoteState);
-      state.sync.scriptUrl = scriptUrl;
-      state.seededDemo = false;
-      persistState({ skipAutoSync: true });
-      setSyncMessage("Dados do Google carregados no painel.", false, true);
-      renderAll();
-      return;
-    }
-
-    const localBaseState = state;
-    localBaseState.sync.scriptUrl = scriptUrl;
-    const mergedState =
-      mode === "push"
-        ? localBaseState
-        : mergeStates(localBaseState, await fetchRemoteState(scriptUrl));
-    const remoteResponse = await pushRemoteState(scriptUrl, mergedState);
-    state = mergeStates(mergedState, remoteResponse);
-    state.seededDemo = false;
-    persistState({ skipAutoSync: true });
-    setSyncMessage("Sincronização concluída com sucesso.", false, true);
-    renderAll();
+    const remoteState = await fetchRemoteState(state.sync.scriptUrl);
+    const merged = mergeStates(state, remoteState);
+    const saved = await pushRemoteState(state.sync.scriptUrl, merged);
+    state = mergeStates(merged, saved);
+    setSyncMessage("Sincronização concluída com sucesso.", true);
+    persistState();
   } catch (error) {
     console.error(error);
     setSyncMessage(
-      "Falha na sincronização. Confira a URL do Apps Script e se a implantação está pública.",
-      true
+      "Falha na sincronização. Atualize o Apps Script com a versão nova antes de tentar de novo.",
+      false
     );
     renderStatus();
   }
@@ -1251,7 +1262,7 @@ async function syncWithGoogle(mode) {
 async function fetchRemoteState(scriptUrl) {
   const response = await fetch(`${scriptUrl}?mode=pull&t=${Date.now()}`);
   if (!response.ok) {
-    throw new Error("Falha ao buscar dados remotos.");
+    throw new Error("Falha ao buscar o estado remoto.");
   }
 
   const payload = await response.json();
@@ -1273,7 +1284,7 @@ async function pushRemoteState(scriptUrl, payload) {
   });
 
   if (!response.ok) {
-    throw new Error("Falha ao enviar dados remotos.");
+    throw new Error("Falha ao salvar o estado remoto.");
   }
 
   const result = await response.json();
@@ -1281,67 +1292,64 @@ async function pushRemoteState(scriptUrl, payload) {
 }
 
 function mergeStates(localState, remoteState) {
-  const normalizedLocal = normalizeState(localState);
-  const normalizedRemote = normalizeState(remoteState);
+  const local = normalizeState(localState);
+  const remote = normalizeState(remoteState);
 
-  const mergedExpenses = mergeCollection(
-    normalizedLocal.expenses,
-    normalizedRemote.expenses,
-    normalizedLocal.deletions.expenses,
-    normalizedRemote.deletions.expenses
+  const mergedCards = mergeCollection(
+    local.cards,
+    remote.cards,
+    local.deletions.cards,
+    remote.deletions.cards
   );
-
-  const mergedInstallments = mergeCollection(
-    normalizedLocal.installments,
-    normalizedRemote.installments,
-    normalizedLocal.deletions.installments,
-    normalizedRemote.deletions.installments
+  const mergedPurchases = mergeCollection(
+    local.purchases,
+    remote.purchases,
+    local.deletions.purchases,
+    remote.deletions.purchases
   );
-
-  const settings =
-    normalizedRemote.settings.updatedAt > normalizedLocal.settings.updatedAt
-      ? normalizedRemote.settings
-      : normalizedLocal.settings;
-
-  const sync =
-    (normalizedRemote.sync.lastSyncedAt || "") > (normalizedLocal.sync.lastSyncedAt || "")
-      ? normalizedRemote.sync
-      : normalizedLocal.sync;
+  const mergedSettings =
+    remote.settings.updatedAt > local.settings.updatedAt ? remote.settings : local.settings;
 
   return normalizeState({
-    version: 1,
-    seededDemo: normalizedLocal.seededDemo && normalizedRemote.seededDemo,
-    settings,
-    sync,
-    expenses: mergedExpenses.items,
-    installments: mergedInstallments.items,
+    version: 3,
+    settings: {
+      ...mergedSettings,
+      selectedMonth: local.settings.selectedMonth,
+    },
+    sync: {
+      scriptUrl: local.sync.scriptUrl || remote.sync.scriptUrl || DEFAULT_SCRIPT_URL,
+      lastSyncedAt: local.sync.lastSyncedAt || remote.sync.lastSyncedAt || "",
+      lastSyncMessage: local.sync.lastSyncMessage || remote.sync.lastSyncMessage || "",
+    },
+    cards: mergedCards.items,
+    purchases: mergedPurchases.items,
     deletions: {
-      expenses: mergedExpenses.deletions,
-      installments: mergedInstallments.deletions,
+      cards: mergedCards.deletions,
+      purchases: mergedPurchases.deletions,
     },
   });
 }
 
 function mergeCollection(localItems, remoteItems, localDeletions, remoteDeletions) {
-  const itemsMap = new Map();
+  const itemsById = new Map();
   [...localItems, ...remoteItems].forEach((item) => {
-    const existing = itemsMap.get(item.id);
-    if (!existing || item.updatedAt > existing.updatedAt) {
-      itemsMap.set(item.id, item);
+    const current = itemsById.get(item.id);
+    if (!current || item.updatedAt > current.updatedAt) {
+      itemsById.set(item.id, item);
     }
   });
 
-  const deletionsMap = new Map();
+  const deletionsById = new Map();
   [...localDeletions, ...remoteDeletions].forEach((entry) => {
-    const existing = deletionsMap.get(entry.id);
-    if (!existing || entry.deletedAt > existing.deletedAt) {
-      deletionsMap.set(entry.id, entry);
+    const current = deletionsById.get(entry.id);
+    if (!current || entry.deletedAt > current.deletedAt) {
+      deletionsById.set(entry.id, entry);
     }
   });
 
   const items = [];
-  itemsMap.forEach((item, id) => {
-    const deletion = deletionsMap.get(id);
+  itemsById.forEach((item) => {
+    const deletion = deletionsById.get(item.id);
     if (deletion && deletion.deletedAt >= item.updatedAt) {
       return;
     }
@@ -1349,1634 +1357,7 @@ function mergeCollection(localItems, remoteItems, localDeletions, remoteDeletion
   });
 
   return {
-    items: items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    deletions: Array.from(deletionsMap.values()),
+    items: items.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    deletions: Array.from(deletionsById.values()),
   };
-}
-
-function persistState(options = {}, nextState = state) {
-  state = normalizeState(nextState);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-
-  if (!options.skipRender) {
-    renderAll();
-  }
-
-  if (!options.skipAutoSync && state.sync.autoSync && state.sync.scriptUrl) {
-    syncWithGoogle("merge");
-  }
-}
-
-function getMonthlySummary(month) {
-  const items = getMonthlyItems(month);
-  const monthTotal = sum(items.map((item) => item.amount));
-  const categoryMap = new Map();
-
-  items.forEach((item) => {
-    categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + item.amount);
-  });
-
-  const categoryTotals = Array.from(categoryMap.entries())
-    .map(([name, total]) => ({
-      name,
-      total,
-      share: `${Math.round((total / (monthTotal || 1)) * 100)}%`,
-    }))
-    .sort((a, b) => b.total - a.total);
-
-  const byPerson = state.settings.people.map((person) => {
-    const total = sum(
-      items.filter((item) => item.personId === person.id).map((item) => item.amount)
-    );
-    const share = monthTotal > 0 ? Math.round((total / monthTotal) * 100) : 0;
-    return {
-      id: person.id,
-      name: person.name,
-      total,
-      share,
-    };
-  });
-
-  const remainingInstallmentsAmount = sum(
-    state.installments.map((installment) =>
-      Math.max(0, installment.totalAmount - getPaidAmount(installment))
-    )
-  );
-
-  const paidInstallmentsAmount = sum(
-    state.installments.map((installment) => getPaidAmount(installment))
-  );
-  const openInstallments = state.installments.filter(
-    (installment) => installment.paidInstallments < installment.installmentCount
-  ).length;
-  const paidInstallmentsCount = sum(
-    state.installments.map((installment) => installment.paidInstallments)
-  );
-
-  return {
-    month,
-    items,
-    monthTotal,
-    categoryTotals,
-    byPerson,
-    remainingInstallmentsAmount,
-    paidInstallmentsAmount,
-    openInstallments,
-    paidInstallmentsCount,
-  };
-}
-
-function getMonthlyItems(month) {
-  const oneTimeItems = state.expenses
-    .filter((expense) => expense.referenceMonth === month)
-    .map((expense) => ({
-      id: expense.id,
-      source: "expense",
-      description: expense.description,
-      detail: `${PAYMENT_METHOD_LABELS[expense.paymentMethod]} • referência ${formatMonthLabel(
-        expense.referenceMonth
-      )}${expense.notes ? ` • ${expense.notes}` : ""}`,
-      date: expense.date,
-      category: expense.category,
-      personId: expense.personId,
-      personName: getPersonName(expense.personId),
-      amount: expense.amount,
-      status: "Lançado",
-      statusTone: "neutral",
-    }));
-
-  const installmentItems = state.installments
-    .map((installment) => {
-      const index = monthDiff(installment.firstMonth, month) + 1;
-      if (index < 1 || index > installment.installmentCount) {
-        return null;
-      }
-
-      const statusTone =
-        index <= installment.paidInstallments
-          ? "success"
-          : month < getCurrentMonth()
-            ? "danger"
-            : index === installment.paidInstallments + 1
-              ? "warning"
-              : "neutral";
-
-      const status =
-        index <= installment.paidInstallments
-          ? "Pago"
-          : month < getCurrentMonth()
-            ? "Em aberto"
-            : "Previsto";
-
-      return {
-        id: `${installment.id}-${index}`,
-        source: "installment",
-        description: `${installment.description} (${index}/${installment.installmentCount})`,
-        detail: `${installment.cardName}${installment.notes ? ` • ${installment.notes}` : ""}`,
-        date: installment.purchaseDate,
-        category: installment.category,
-        personId: installment.personId,
-        personName: getPersonName(installment.personId),
-        amount: installment.installmentAmounts[index - 1] || 0,
-        status,
-        statusTone,
-      };
-    })
-    .filter(Boolean);
-
-  return [...oneTimeItems, ...installmentItems].sort((a, b) => {
-    if (a.date !== b.date) {
-      return b.date.localeCompare(a.date);
-    }
-    return b.amount - a.amount;
-  });
-}
-
-function getPaidAmount(installment) {
-  return normalizeMoney(
-    sum(installment.installmentAmounts.slice(0, installment.paidInstallments))
-  );
-}
-
-function getNextPendingMonth(installment) {
-  if (installment.paidInstallments >= installment.installmentCount) {
-    return "";
-  }
-  return addMonths(installment.firstMonth, installment.paidInstallments);
-}
-
-function splitInstallments(totalAmount, count) {
-  const totalInCents = Math.round(normalizeMoney(totalAmount) * 100);
-  const base = Math.floor(totalInCents / count);
-  const remainder = totalInCents % count;
-  const installments = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const cents = base + (index < remainder ? 1 : 0);
-    installments.push(cents / 100);
-  }
-
-  return installments;
-}
-
-function setSyncMessage(message, isError, markSynced) {
-  state.sync.lastSyncMessage = message;
-  if (markSynced) {
-    state.sync.lastSyncedAt = nowIso();
-  }
-
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(state)));
-  } catch (error) {
-    console.warn(error);
-  }
-
-  if (isError) {
-    console.warn(message);
-  }
-}
-
-function renderTagHtml(tone, label) {
-  const className = {
-    neutral: "tag-neutral",
-    warning: "tag-warning",
-    danger: "tag-danger",
-    success: "tag-success",
-  }[tone] || "tag-neutral";
-
-  return `<span class="tag ${className}">${escapeHtml(label)}</span>`;
-}
-
-function addCategoryIfNeeded(rawValue) {
-  const category = cleanText(rawValue);
-  if (!category) {
-    return "Outros";
-  }
-
-  if (!state.settings.categories.includes(category)) {
-    state.settings.categories.push(category);
-    state.settings.updatedAt = nowIso();
-  }
-
-  return category;
-}
-
-function getPersonName(personId) {
-  return state.settings.people.find((person) => person.id === personId)?.name || "Pessoa";
-}
-
-function cleanText(value) {
-  return String(value || "").trim();
-}
-
-function normalizeMoney(value) {
-  const normalized = Number.parseFloat(String(value).replace(",", "."));
-  if (!Number.isFinite(normalized)) {
-    return 0;
-  }
-  return Math.round(normalized * 100) / 100;
-}
-
-function clampInteger(value, min, max, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  return Math.max(min, Math.min(max, parsed));
-}
-
-function sum(list) {
-  return normalizeMoney(list.reduce((total, value) => total + value, 0));
-}
-
-function nowIso() {
-  return new Date().toISOString();
-}
-
-function getCurrentDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getCurrentMonth() {
-  return getCurrentDate().slice(0, 7);
-}
-
-function getMonthFromDate(date) {
-  return isValidDate(date) ? date.slice(0, 7) : getCurrentMonth();
-}
-
-function isValidDate(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
-}
-
-function isValidMonth(value) {
-  return /^\d{4}-\d{2}$/.test(String(value || ""));
-}
-
-function addMonths(month, amount) {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(year, monthNumber - 1 + amount, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthDiff(startMonth, endMonth) {
-  const [startYear, startMonthNumber] = startMonth.split("-").map(Number);
-  const [endYear, endMonthNumber] = endMonth.split("-").map(Number);
-  return (endYear - startYear) * 12 + (endMonthNumber - startMonthNumber);
-}
-
-function formatCurrency(value) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value || 0);
-}
-
-function formatDate(dateString) {
-  const [year, month, day] = String(dateString).split("-").map(Number);
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(year, month - 1, day));
-}
-
-function formatMonthLabel(monthString) {
-  const [year, month] = String(monthString).split("-").map(Number);
-  return new Intl.DateTimeFormat("pt-BR", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(year, month - 1, 1));
-}
-
-function formatDateTime(dateString) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(dateString));
-}
-
-function createId(prefix) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function createEmptyState() {
-  return {
-    version: 2,
-    seededDemo: false,
-    settings: {
-      householdLabel: "Painel financeiro da casa",
-      people: [
-        { id: "person-1", name: "Voce" },
-        { id: "person-2", name: "Sua esposa" },
-      ],
-      monthlyBudget: 5000,
-      selectedMonth: getCurrentMonth(),
-      categories: [...DEFAULT_CATEGORIES],
-      updatedAt: nowIso(),
-    },
-    sync: {
-      scriptUrl: DEFAULT_SCRIPT_URL,
-      autoSync: false,
-      lastSyncedAt: "",
-      lastSyncMessage: "Sincronizacao ainda nao configurada.",
-    },
-    expenses: [],
-    installments: [],
-    monthClosures: [],
-    deletions: {
-      expenses: [],
-      installments: [],
-    },
-  };
-}
-
-function normalizeState(rawState) {
-  const empty = createEmptyState();
-  const normalized = {
-    version: 2,
-    seededDemo: Boolean(rawState?.seededDemo),
-    settings: {
-      ...empty.settings,
-      ...(rawState?.settings || {}),
-    },
-    sync: {
-      ...empty.sync,
-      ...(rawState?.sync || {}),
-    },
-    expenses: Array.isArray(rawState?.expenses)
-      ? rawState.expenses.map(normalizeExpense).filter(Boolean)
-      : [],
-    installments: Array.isArray(rawState?.installments)
-      ? rawState.installments.map(normalizeInstallment).filter(Boolean)
-      : [],
-    monthClosures: Array.isArray(rawState?.monthClosures)
-      ? rawState.monthClosures.map(normalizeMonthClosure).filter(Boolean)
-      : [],
-    deletions: {
-      expenses: normalizeDeletionList(rawState?.deletions?.expenses),
-      installments: normalizeDeletionList(rawState?.deletions?.installments),
-    },
-  };
-
-  if (!Array.isArray(normalized.settings.people) || normalized.settings.people.length < 2) {
-    normalized.settings.people = empty.settings.people;
-  } else {
-    normalized.settings.people = normalized.settings.people.map((person, index) => ({
-      id: cleanText(person.id) || `person-${index + 1}`,
-      name: cleanText(person.name) || `Pessoa ${index + 1}`,
-    }));
-  }
-
-  const rawCategories = Array.isArray(normalized.settings.categories)
-    ? normalized.settings.categories
-    : [];
-
-  normalized.settings.categories = Array.from(
-    new Set(
-      [...DEFAULT_CATEGORIES, ...rawCategories]
-        .map((category) => cleanText(category))
-        .filter(Boolean)
-    )
-  );
-  normalized.settings.householdLabel =
-    cleanText(normalized.settings.householdLabel) || empty.settings.householdLabel;
-  normalized.settings.selectedMonth =
-    isValidMonth(normalized.settings.selectedMonth) && normalized.settings.selectedMonth
-      ? normalized.settings.selectedMonth
-      : getCurrentMonth();
-  normalized.settings.monthlyBudget = normalizeMoney(normalized.settings.monthlyBudget);
-  normalized.settings.updatedAt = normalized.settings.updatedAt || nowIso();
-  normalized.sync.scriptUrl = cleanText(normalized.sync.scriptUrl) || DEFAULT_SCRIPT_URL;
-  normalized.monthClosures = mergeMonthClosures(normalized.monthClosures, []);
-
-  return normalized;
-}
-
-function normalizeExpense(expense) {
-  if (!expense) {
-    return null;
-  }
-
-  const normalized = {
-    id: expense.id || createId("exp"),
-    date: isValidDate(expense.date) ? expense.date : getCurrentDate(),
-    referenceMonth: isValidMonth(expense.referenceMonth)
-      ? expense.referenceMonth
-      : getCurrentMonth(),
-    description: cleanText(expense.description) || "Gasto sem descricao",
-    category: cleanText(expense.category) || "Outros",
-    amount: normalizeMoney(expense.amount),
-    personId: cleanText(expense.personId) || "person-1",
-    paymentMethod: PAYMENT_METHOD_LABELS[expense.paymentMethod]
-      ? expense.paymentMethod
-      : "pix",
-    cardName: cleanText(expense.cardName),
-    notes: cleanText(expense.notes),
-    updatedAt: expense.updatedAt || nowIso(),
-  };
-
-  return normalized.amount > 0 ? normalized : null;
-}
-
-function renderAll() {
-  renderHeader();
-  renderFormMode();
-  populatePeopleOptions();
-  populateCategoryOptions();
-  renderFilters();
-  renderFormStates();
-  renderStats();
-  renderMonthTable();
-  renderCategoryBreakdown();
-  renderInstallments();
-  renderMonthClosure();
-  renderSettings();
-  renderStatus();
-}
-
-function renderFilters() {
-  const monthItems = getMonthlyItems(state.settings.selectedMonth);
-  const categories = Array.from(
-    new Set(monthItems.map((item) => item.category).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b));
-  const cards = Array.from(
-    new Set(monthItems.map((item) => item.cardName).filter(Boolean))
-  ).sort((a, b) => a.localeCompare(b));
-
-  dom.searchFilter.value = uiState.filters.search;
-  dom.personFilter.innerHTML = [
-    `<option value="all">Todas</option>`,
-    ...state.settings.people.map(
-      (person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.name)}</option>`
-    ),
-  ].join("");
-  dom.categoryFilter.innerHTML = [
-    `<option value="all">Todas</option>`,
-    ...categories.map(
-      (category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`
-    ),
-  ].join("");
-  dom.cardFilter.innerHTML = [
-    `<option value="all">Todos</option>`,
-    `<option value="__none__">Sem cartao</option>`,
-    ...cards.map((card) => `<option value="${escapeHtml(card)}">${escapeHtml(card)}</option>`),
-  ].join("");
-
-  dom.personFilter.value = ensureFilterOption(dom.personFilter, uiState.filters.personId);
-  dom.categoryFilter.value = ensureFilterOption(dom.categoryFilter, uiState.filters.category);
-  dom.cardFilter.value = ensureFilterOption(dom.cardFilter, uiState.filters.cardName);
-  dom.typeFilter.value = ensureFilterOption(dom.typeFilter, uiState.filters.type);
-  dom.statusFilter.value = ensureFilterOption(dom.statusFilter, uiState.filters.status);
-}
-
-function renderFormStates() {
-  const selectedMonthClosed = isMonthClosed(state.settings.selectedMonth);
-  const expenseMode = uiState.expenseEditId ? "edit" : "create";
-  const installmentMode = uiState.installmentEditId ? "edit" : "create";
-
-  dom.expenseSubmitButton.textContent =
-    expenseMode === "edit" ? "Salvar alteracoes" : "Salvar gasto";
-  dom.installmentSubmitButton.textContent =
-    installmentMode === "edit" ? "Salvar alteracoes" : "Salvar parcelado";
-  dom.expenseCancelButton.classList.toggle("hidden", expenseMode !== "edit");
-  dom.installmentCancelButton.classList.toggle("hidden", installmentMode !== "edit");
-  dom.expenseFormHint.textContent =
-    expenseMode === "edit"
-      ? "Edite o gasto e salve para atualizar o registro existente."
-      : selectedMonthClosed
-        ? "Este mes esta fechado. Lance apenas em meses ainda abertos."
-        : "Registre compras do dia a dia e ajuste o mes de referencia.";
-  dom.installmentFormHint.textContent =
-    installmentMode === "edit"
-      ? "Edite a compra parcelada inteira, inclusive cartao e numero de parcelas."
-      : selectedMonthClosed
-        ? "Se a primeira fatura cair em mes fechado, o app vai bloquear o envio."
-        : "Use para compras grandes no cartao e acompanhe parcela por parcela.";
-}
-
-function getMonthlySummary(month) {
-  const items = getMonthlyItems(month);
-  const monthTotal = sum(items.map((item) => item.amount));
-  const categoryMap = new Map();
-
-  items.forEach((item) => {
-    categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + item.amount);
-  });
-
-  const categoryTotals = Array.from(categoryMap.entries())
-    .map(([name, total]) => ({
-      name,
-      total,
-      share: `${Math.round((total / (monthTotal || 1)) * 100)}%`,
-    }))
-    .sort((a, b) => b.total - a.total);
-
-  const byPerson = state.settings.people.map((person) => {
-    const total = sum(
-      items.filter((item) => item.personId === person.id).map((item) => item.amount)
-    );
-    return {
-      id: person.id,
-      name: person.name,
-      total,
-      share: monthTotal > 0 ? Math.round((total / monthTotal) * 100) : 0,
-    };
-  });
-
-  return {
-    month,
-    items,
-    monthTotal,
-    categoryTotals,
-    byPerson,
-    remainingInstallmentsAmount: sum(
-      state.installments.map((installment) =>
-        Math.max(0, installment.totalAmount - getPaidAmount(installment))
-      )
-    ),
-    paidInstallmentsAmount: sum(
-      state.installments.map((installment) => getPaidAmount(installment))
-    ),
-    openInstallments: state.installments.filter(
-      (installment) => installment.paidInstallments < installment.installmentCount
-    ).length,
-    paidInstallmentsCount: sum(
-      state.installments.map((installment) => installment.paidInstallments)
-    ),
-  };
-}
-
-function getMonthlyItems(month) {
-  const oneTimeItems = state.expenses
-    .filter((expense) => expense.referenceMonth === month)
-    .map((expense) => ({
-      id: expense.id,
-      source: "expense",
-      description: expense.description,
-      detail: [
-        getPaymentMethodLabel(expense.paymentMethod),
-        expense.cardName || "",
-        expense.notes || "",
-      ]
-        .filter(Boolean)
-        .join(" • "),
-      date: expense.date,
-      category: expense.category,
-      personId: expense.personId,
-      personName: getPersonName(expense.personId),
-      amount: expense.amount,
-      status: "Lancado",
-      statusTone: "neutral",
-      cardName: expense.cardName,
-      paymentMethod: expense.paymentMethod,
-      referenceMonth: expense.referenceMonth,
-      searchText: [expense.description, expense.notes, expense.category, expense.cardName]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase(),
-    }));
-
-  const installmentItems = state.installments
-    .map((installment) => {
-      const index = monthDiff(installment.firstMonth, month) + 1;
-      if (index < 1 || index > installment.installmentCount) {
-        return null;
-      }
-
-      const status =
-        index <= installment.paidInstallments
-          ? "Pago"
-          : month < getCurrentMonth()
-            ? "Em aberto"
-            : "Previsto";
-      const statusTone =
-        status === "Pago"
-          ? "success"
-          : status === "Em aberto"
-            ? "danger"
-            : index === installment.paidInstallments + 1
-              ? "warning"
-              : "neutral";
-
-      return {
-        id: `${installment.id}-${index}`,
-        source: "installment",
-        installmentId: installment.id,
-        description: `${installment.description} (${index}/${installment.installmentCount})`,
-        detail: [installment.cardName, installment.notes].filter(Boolean).join(" • "),
-        date: installment.purchaseDate,
-        category: installment.category,
-        personId: installment.personId,
-        personName: getPersonName(installment.personId),
-        amount: installment.installmentAmounts[index - 1] || 0,
-        status,
-        statusTone,
-        cardName: installment.cardName,
-        paymentMethod: "credito",
-        referenceMonth: month,
-        searchText: [
-          installment.description,
-          installment.notes,
-          installment.category,
-          installment.cardName,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase(),
-      };
-    })
-    .filter(Boolean);
-
-  return [...oneTimeItems, ...installmentItems].sort((a, b) => {
-    if (a.date !== b.date) {
-      return b.date.localeCompare(a.date);
-    }
-    return b.amount - a.amount;
-  });
-}
-
-function applyMonthlyFilters(items) {
-  return items.filter((item) => {
-    if (uiState.filters.personId !== "all" && item.personId !== uiState.filters.personId) {
-      return false;
-    }
-
-    if (uiState.filters.category !== "all" && item.category !== uiState.filters.category) {
-      return false;
-    }
-
-    if (uiState.filters.cardName === "__none__" && item.cardName) {
-      return false;
-    }
-
-    if (
-      uiState.filters.cardName !== "all" &&
-      uiState.filters.cardName !== "__none__" &&
-      item.cardName !== uiState.filters.cardName
-    ) {
-      return false;
-    }
-
-    if (uiState.filters.type !== "all" && item.source !== uiState.filters.type) {
-      return false;
-    }
-
-    if (uiState.filters.status !== "all" && getStatusFilterKey(item.status) !== uiState.filters.status) {
-      return false;
-    }
-
-    if (uiState.filters.search && !item.searchText.includes(uiState.filters.search)) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-function buildTableSummaryText(allItems, filteredItems) {
-  const selectedMonthLabel = formatMonthLabel(state.settings.selectedMonth);
-  if (!allItems.length) {
-    return `Sem lancamentos em ${selectedMonthLabel}.`;
-  }
-
-  const filteredTotal = sum(filteredItems.map((item) => item.amount));
-  if (filteredItems.length === allItems.length) {
-    return `${filteredItems.length} lancamentos em ${selectedMonthLabel}, somando ${formatCurrency(filteredTotal)}.`;
-  }
-
-  return `${filteredItems.length} de ${allItems.length} lancamentos visiveis, somando ${formatCurrency(filteredTotal)} com os filtros atuais.`;
-}
-
-function ensureFilterOption(select, value) {
-  return Array.from(select.options).some((option) => option.value === value) ? value : "all";
-}
-
-function getStatusFilterKey(status) {
-  return String(status || "")
-    .toLowerCase()
-    .replaceAll(" ", "-");
-}
-
-function getPaymentMethodLabel(paymentMethod) {
-  return {
-    pix: "Pix",
-    debito: "Debito",
-    credito: "Credito",
-    dinheiro: "Dinheiro",
-    boleto: "Boleto",
-  }[paymentMethod] || "Pagamento";
-}
-
-function getMonthClosure(month) {
-  return state.monthClosures.find((closure) => closure.month === month) || null;
-}
-
-function isMonthClosed(month) {
-  return getMonthClosure(month)?.status === "closed";
-}
-
-function mergeMonthClosures(localClosures, remoteClosures) {
-  const map = new Map();
-  [...localClosures, ...remoteClosures].forEach((closure) => {
-    if (!closure) {
-      return;
-    }
-
-    const existing = map.get(closure.month);
-    if (!existing || closure.updatedAt > existing.updatedAt) {
-      map.set(closure.month, closure);
-    }
-  });
-
-  return Array.from(map.values()).sort((a, b) => b.month.localeCompare(a.month));
-}
-
-function renderStats() {
-  const summary = getMonthlySummary(state.settings.selectedMonth);
-  const budget = state.settings.monthlyBudget || 0;
-  const budgetUsage = budget > 0 ? (summary.monthTotal / budget) * 100 : 0;
-  const selectedClosure = getMonthClosure(state.settings.selectedMonth);
-
-  const stats = [
-    {
-      label: "Total do mes",
-      value: formatCurrency(summary.monthTotal),
-      support: `${summary.items.length} lancamentos no mes`,
-      progress: budget > 0 ? Math.min(100, budgetUsage) : 0,
-    },
-    {
-      label: "Orcamento usado",
-      value: budget > 0 ? `${Math.round(budgetUsage)}%` : "Sem meta",
-      support:
-        budget > 0
-          ? `${formatCurrency(Math.max(0, budget - summary.monthTotal))} ainda livres`
-          : "Defina um orcamento para acompanhar",
-      progress: Math.min(100, budgetUsage || 0),
-    },
-    {
-      label: "Parcelados em aberto",
-      value: formatCurrency(summary.remainingInstallmentsAmount),
-      support: `${summary.openInstallments} compras ainda ativas`,
-      progress:
-        summary.remainingInstallmentsAmount + summary.paidInstallmentsAmount > 0
-          ? Math.round(
-              (summary.paidInstallmentsAmount /
-                (summary.remainingInstallmentsAmount + summary.paidInstallmentsAmount)) *
-                100
-            )
-          : 0,
-    },
-    {
-      label: "Mes selecionado",
-      value: selectedClosure?.status === "closed" ? "Fechado" : "Aberto",
-      support:
-        selectedClosure?.status === "closed"
-          ? `Fechado em ${formatDateTime(selectedClosure.closedAt)}`
-          : "Lancamentos continuam liberados",
-      progress: selectedClosure?.status === "closed" ? 100 : 35,
-    },
-    ...summary.byPerson.map((item) => ({
-      label: item.name,
-      value: formatCurrency(item.total),
-      support: `${item.share}% do total da casa neste mes`,
-      progress: item.share,
-    })),
-  ];
-
-  dom.statsGrid.innerHTML = stats
-    .map(
-      (stat) => `
-        <article class="stat-card">
-          <span class="stat-label">${escapeHtml(stat.label)}</span>
-          <strong class="stat-value">${escapeHtml(stat.value)}</strong>
-          <span class="stat-support">${escapeHtml(stat.support)}</span>
-          <div class="progress-shell">
-            <div class="progress-fill" style="width: ${Math.min(100, Math.max(0, stat.progress || 0))}%"></div>
-          </div>
-        </article>
-      `
-    )
-    .join("");
-}
-
-function renderMonthTable() {
-  const summary = getMonthlySummary(state.settings.selectedMonth);
-  const filteredItems = applyMonthlyFilters(summary.items);
-
-  dom.monthTableSummary.textContent = buildTableSummaryText(summary.items, filteredItems);
-
-  if (!filteredItems.length) {
-    dom.monthTable.innerHTML = `
-      <div class="empty-state">
-        <p>Nenhum lancamento encontrado com os filtros atuais para ${formatMonthLabel(state.settings.selectedMonth)}.</p>
-      </div>
-    `;
-    return;
-  }
-
-  dom.monthTable.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Descricao</th>
-          <th>Data</th>
-          <th>Categoria</th>
-          <th>Pessoa</th>
-          <th>Status</th>
-          <th>Valor</th>
-          <th>Acao</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${filteredItems
-          .map((item) => {
-            const canEdit = item.source === "expense" && !isMonthClosed(item.referenceMonth);
-            return `
-              <tr>
-                <td>
-                  <strong>${escapeHtml(item.description)}</strong>
-                  <span class="installment-subtitle">${escapeHtml(item.detail || "Sem detalhes")}</span>
-                </td>
-                <td>${escapeHtml(formatDate(item.date))}</td>
-                <td>${escapeHtml(item.category)}</td>
-                <td>${escapeHtml(item.personName)}</td>
-                <td>${renderTagHtml(item.statusTone, item.status)}</td>
-                <td class="amount-cell">${escapeHtml(formatCurrency(item.amount))}</td>
-                <td>
-                  ${
-                    item.source === "expense"
-                      ? `
-                        <button class="button button-secondary table-action" type="button" data-action="edit-expense" data-id="${escapeHtml(item.id)}" ${canEdit ? "" : "disabled"}>Editar</button>
-                        <button class="button button-secondary table-action" type="button" data-action="delete-expense" data-id="${escapeHtml(item.id)}" ${canEdit ? "" : "disabled"}>Excluir</button>
-                      `
-                      : `<span class="tag tag-neutral">Gerencie ao lado</span>`
-                  }
-                </td>
-              </tr>
-            `;
-          })
-          .join("")}
-      </tbody>
-    </table>
-  `;
-}
-
-function renderCategoryBreakdown() {
-  const filteredItems = applyMonthlyFilters(getMonthlyItems(state.settings.selectedMonth));
-  const filteredTotal = sum(filteredItems.map((item) => item.amount));
-  const categoryMap = new Map();
-
-  filteredItems.forEach((item) => {
-    categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + item.amount);
-  });
-
-  const categories = Array.from(categoryMap.entries())
-    .map(([name, total]) => ({
-      name,
-      total,
-      share: `${Math.round((total / (filteredTotal || 1)) * 100)}%`,
-    }))
-    .sort((a, b) => b.total - a.total);
-
-  if (!categories.length) {
-    dom.categoryBreakdown.innerHTML = `
-      <div class="empty-state">
-        <p>Nenhuma categoria aparece com os filtros atuais.</p>
-      </div>
-    `;
-    return;
-  }
-
-  dom.categoryBreakdown.innerHTML = categories
-    .map((category) => {
-      const width = filteredTotal > 0 ? (category.total / filteredTotal) * 100 : 0;
-      return `
-        <div class="category-row">
-          <div>
-            <div class="category-title">
-              <strong>${escapeHtml(category.name)}</strong>
-              <span>${escapeHtml(formatCurrency(category.total))}</span>
-            </div>
-            <div class="mini-bar"><span style="width: ${Math.min(100, width)}%"></span></div>
-          </div>
-          <span class="tag tag-neutral">${escapeHtml(category.share)} do filtro</span>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function renderInstallments() {
-  const selectedMonth = state.settings.selectedMonth;
-  const filteredInstallments = state.installments
-    .filter((installment) => installmentTouchesMonth(installment, selectedMonth))
-    .filter((installment) => installmentMatchesFilters(installment))
-    .sort((a, b) => {
-      const aNext = getNextPendingMonth(a) || "9999-12";
-      const bNext = getNextPendingMonth(b) || "9999-12";
-      return aNext.localeCompare(bNext);
-    });
-
-  if (!filteredInstallments.length) {
-    dom.installmentsList.innerHTML = `
-      <div class="empty-state">
-        <p>Nenhuma compra parcelada aparece com os filtros atuais neste mes.</p>
-      </div>
-    `;
-    return;
-  }
-
-  dom.installmentsList.innerHTML = filteredInstallments
-    .map((installment) => {
-      const personName = getPersonName(installment.personId);
-      const paidAmount = getPaidAmount(installment);
-      const remainingAmount = Math.max(0, installment.totalAmount - paidAmount);
-      const nextMonth = getNextPendingMonth(installment);
-      const currentMonthIndex = monthDiff(installment.firstMonth, selectedMonth) + 1;
-      const thisMonthAmount =
-        currentMonthIndex >= 1 && currentMonthIndex <= installment.installmentCount
-          ? installment.installmentAmounts[currentMonthIndex - 1]
-          : 0;
-      const progress = Math.round(
-        (installment.paidInstallments / installment.installmentCount) * 100
-      );
-      const lockMonths = getInstallmentClosedMonths(installment);
-      const editLocked = lockMonths.length > 0;
-      const incrementMonth = getNextPendingMonth(installment);
-      const decrementMonth =
-        installment.paidInstallments > 0
-          ? addMonths(installment.firstMonth, installment.paidInstallments - 1)
-          : "";
-
-      let tagText = "Ativo";
-      let tagTone = "neutral";
-
-      if (installment.paidInstallments >= installment.installmentCount) {
-        tagText = "Concluido";
-        tagTone = "success";
-      } else if (nextMonth && nextMonth < selectedMonth) {
-        tagText = "Parcela pendente";
-        tagTone = "danger";
-      } else if (nextMonth === selectedMonth) {
-        tagText = "Entra neste mes";
-        tagTone = "warning";
-      }
-
-      return `
-        <article class="installment-card">
-          <div class="installment-head">
-            <div>
-              <strong>${escapeHtml(installment.description)}</strong>
-              <div class="installment-subtitle">
-                ${escapeHtml(personName)} • ${escapeHtml(installment.cardName)} • ${escapeHtml(installment.category)}
-              </div>
-            </div>
-            ${renderTagHtml(tagTone, tagText)}
-          </div>
-
-          <div class="installment-meta">
-            <span>Compra em ${escapeHtml(formatDate(installment.purchaseDate))}</span>
-            <span>${escapeHtml(installment.paidInstallments.toString())}/${escapeHtml(installment.installmentCount.toString())} parcelas pagas</span>
-          </div>
-
-          <div class="installment-grid">
-            <div>
-              <span>Valor total</span>
-              <strong>${escapeHtml(formatCurrency(installment.totalAmount))}</strong>
-            </div>
-            <div>
-              <span>Ja pago</span>
-              <strong>${escapeHtml(formatCurrency(paidAmount))}</strong>
-            </div>
-            <div>
-              <span>Falta pagar</span>
-              <strong>${escapeHtml(formatCurrency(remainingAmount))}</strong>
-            </div>
-          </div>
-
-          <div class="installment-grid">
-            <div>
-              <span>Parcela do mes selecionado</span>
-              <strong>${escapeHtml(thisMonthAmount ? formatCurrency(thisMonthAmount) : "Sem cobranca")}</strong>
-            </div>
-            <div>
-              <span>Proxima parcela</span>
-              <strong>${escapeHtml(nextMonth ? `${installment.paidInstallments + 1}/${installment.installmentCount} em ${formatMonthLabel(nextMonth)}` : "Finalizado")}</strong>
-            </div>
-            <div>
-              <span>Observacao</span>
-              <strong>${escapeHtml(installment.notes || "Sem observacao")}</strong>
-            </div>
-          </div>
-
-          <div class="progress-shell" aria-hidden="true">
-            <div class="progress-fill" style="width: ${progress}%"></div>
-          </div>
-
-          <div class="installment-actions">
-            <div class="installment-button-group">
-              <button class="ghost-button" type="button" data-action="edit-installment" data-id="${escapeHtml(installment.id)}" ${editLocked ? "disabled" : ""}>Editar</button>
-              <button class="ghost-button" type="button" data-action="decrement-paid" data-id="${escapeHtml(installment.id)}" ${!decrementMonth || isMonthClosed(decrementMonth) ? "disabled" : ""}>Voltar 1 parcela</button>
-              <button class="ghost-button" type="button" data-action="increment-paid" data-id="${escapeHtml(installment.id)}" ${!incrementMonth || isMonthClosed(incrementMonth) ? "disabled" : ""}>Marcar 1 parcela paga</button>
-            </div>
-            <button class="ghost-button" type="button" data-action="delete-installment" data-id="${escapeHtml(installment.id)}" ${editLocked ? "disabled" : ""}>Excluir compra</button>
-          </div>
-
-          ${
-            editLocked
-              ? `<p class="muted-line">Essa compra toca meses ja fechados (${escapeHtml(lockMonths.join(", "))}) e por isso nao pode mais ser editada ou excluida.</p>`
-              : ""
-          }
-        </article>
-      `;
-    })
-    .join("");
-}
-
-function renderMonthClosure() {
-  const month = state.settings.selectedMonth;
-  const summary = getMonthlySummary(month);
-  const closure = getMonthClosure(month);
-  const snapshot = closure?.status === "closed" ? closure : serializeMonthClosure(month, summary);
-
-  dom.monthClosingPanel.innerHTML = `
-    <div class="closing-status">
-      <div>
-        <strong>${closure?.status === "closed" ? "Mes fechado" : "Mes aberto"}</strong>
-        <p class="muted-line">
-          ${
-            closure?.status === "closed"
-              ? `Fechado em ${escapeHtml(formatDateTime(closure.closedAt))}. Para mudar lancamentos deste mes, sera preciso reabrir.`
-              : "Feche o mes quando quiser congelar os totais e evitar mudancas acidentais."
-          }
-        </p>
-      </div>
-      ${renderTagHtml(closure?.status === "closed" ? "success" : "warning", closure?.status === "closed" ? "Fechado" : "Aberto")}
-    </div>
-
-    <div class="closing-grid">
-      <div class="info-card">
-        <strong>Total do mes</strong>
-        <p>${escapeHtml(formatCurrency(snapshot.monthTotal))}</p>
-      </div>
-      <div class="info-card">
-        <strong>Lancamentos</strong>
-        <p>${escapeHtml(String(snapshot.itemCount))}</p>
-      </div>
-      <div class="info-card">
-        <strong>Parcelados em aberto</strong>
-        <p>${escapeHtml(String(snapshot.openInstallments))}</p>
-      </div>
-      <div class="info-card">
-        <strong>Parcelados ja pagos</strong>
-        <p>${escapeHtml(String(snapshot.paidInstallmentsCount))}</p>
-      </div>
-    </div>
-
-    <div class="closing-grid">
-      ${snapshot.byPerson
-        .map(
-          (person) => `
-            <div class="info-card">
-              <strong>${escapeHtml(person.name)}</strong>
-              <p>${escapeHtml(formatCurrency(person.total))}</p>
-            </div>
-          `
-        )
-        .join("")}
-    </div>
-
-    <div class="closing-actions">
-      ${
-        closure?.status === "closed"
-          ? `<button class="button button-secondary" type="button" data-action="reopen-month">Reabrir mes</button>`
-          : `<button class="button" type="button" data-action="close-month">Fechar mes</button>`
-      }
-    </div>
-  `;
-}
-
-function renderStatus() {
-  const selectedMonthClosed = isMonthClosed(state.settings.selectedMonth);
-  dom.dataModeBadge.textContent = selectedMonthClosed
-    ? `Mes ${formatMonthLabel(state.settings.selectedMonth)} fechado.`
-    : "Painel pronto para novos lancamentos.";
-
-  const syncParts = [];
-  if (state.sync.lastSyncMessage) {
-    syncParts.push(state.sync.lastSyncMessage);
-  }
-
-  if (state.sync.lastSyncedAt) {
-    syncParts.push(`Ultima sync: ${formatDateTime(state.sync.lastSyncedAt)}`);
-  }
-
-  dom.syncStatus.textContent = syncParts.join(" ") || "Sincronizacao ainda nao configurada.";
-}
-
-function handleFilterChange() {
-  uiState.filters.search = cleanText(dom.searchFilter.value).toLowerCase();
-  uiState.filters.personId = dom.personFilter.value;
-  uiState.filters.category = dom.categoryFilter.value;
-  uiState.filters.cardName = dom.cardFilter.value;
-  uiState.filters.type = dom.typeFilter.value;
-  uiState.filters.status = dom.statusFilter.value;
-  renderAll();
-}
-
-function clearFilters() {
-  uiState.filters = {
-    search: "",
-    personId: "all",
-    category: "all",
-    cardName: "all",
-    type: "all",
-    status: "all",
-  };
-  renderAll();
-}
-
-function handleExpenseSubmit(event) {
-  event.preventDefault();
-  prepareForRealData();
-
-  const form = new FormData(dom.expenseForm);
-  const entryId = cleanText(form.get("entryId"));
-  const referenceMonth = form.get("referenceMonth");
-
-  if (isMonthClosed(referenceMonth)) {
-    setSyncMessage("Esse mes ja esta fechado. Reabra o mes antes de alterar lancamentos dele.", true);
-    renderStatus();
-    return;
-  }
-
-  const category = addCategoryIfNeeded(form.get("category"));
-  const expense = normalizeExpense({
-    id: entryId || createId("exp"),
-    date: form.get("date"),
-    referenceMonth,
-    description: form.get("description"),
-    category,
-    amount: form.get("amount"),
-    personId: form.get("personId"),
-    paymentMethod: form.get("paymentMethod"),
-    cardName: form.get("cardName"),
-    notes: form.get("notes"),
-    updatedAt: nowIso(),
-  });
-
-  if (!expense) {
-    setSyncMessage("Nao foi possivel salvar esse gasto.", true);
-    renderStatus();
-    return;
-  }
-
-  if (entryId) {
-    state.expenses = state.expenses.map((item) => (item.id === entryId ? expense : item));
-    setSyncMessage("Gasto atualizado com sucesso.", false);
-  } else {
-    state.expenses.unshift(expense);
-    setSyncMessage("Gasto salvo com sucesso.", false);
-  }
-
-  state.seededDemo = false;
-  cancelExpenseEdit({ silent: true });
-  persistState();
-}
-
-function handleInstallmentSubmit(event) {
-  event.preventDefault();
-  prepareForRealData();
-
-  const form = new FormData(dom.installmentForm);
-  const entryId = cleanText(form.get("entryId"));
-  const firstMonth = form.get("firstMonth");
-
-  if (isMonthClosed(firstMonth)) {
-    setSyncMessage("A primeira fatura cai em um mes fechado. Reabra esse mes antes de salvar.", true);
-    renderStatus();
-    return;
-  }
-
-  const existing = entryId
-    ? state.installments.find((installment) => installment.id === entryId)
-    : null;
-  if (existing && getInstallmentClosedMonths(existing).length) {
-    setSyncMessage("Essa compra parcelada ja toca meses fechados e nao pode mais ser editada.", true);
-    renderStatus();
-    return;
-  }
-
-  const category = addCategoryIfNeeded(form.get("category"));
-  const installment = normalizeInstallment({
-    id: entryId || createId("inst"),
-    purchaseDate: form.get("purchaseDate"),
-    description: form.get("description"),
-    category,
-    totalAmount: form.get("totalAmount"),
-    installmentCount: form.get("installmentCount"),
-    paidInstallments: existing?.paidInstallments || 0,
-    firstMonth,
-    personId: form.get("personId"),
-    cardName: form.get("cardName"),
-    notes: form.get("notes"),
-    updatedAt: nowIso(),
-  });
-
-  if (!installment) {
-    setSyncMessage("Nao foi possivel salvar essa compra parcelada.", true);
-    renderStatus();
-    return;
-  }
-
-  if (entryId) {
-    state.installments = state.installments.map((item) =>
-      item.id === entryId ? installment : item
-    );
-    setSyncMessage("Compra parcelada atualizada com sucesso.", false);
-  } else {
-    state.installments.unshift(installment);
-    setSyncMessage("Compra parcelada salva com sucesso.", false);
-  }
-
-  state.seededDemo = false;
-  cancelInstallmentEdit({ silent: true });
-  persistState();
-}
-
-function handleMonthTableClick(event) {
-  const button = event.target.closest("[data-action]");
-  if (!button || button.disabled) {
-    return;
-  }
-
-  const expenseId = button.dataset.id;
-  const expense = state.expenses.find((item) => item.id === expenseId);
-  if (!expense) {
-    return;
-  }
-
-  if (button.dataset.action === "edit-expense") {
-    startExpenseEdit(expenseId);
-    return;
-  }
-
-  if (button.dataset.action === "delete-expense") {
-    if (isMonthClosed(expense.referenceMonth)) {
-      setSyncMessage("Esse mes esta fechado e nao permite excluir o gasto.", true);
-      renderStatus();
-      return;
-    }
-
-    if (!window.confirm(`Excluir o gasto "${expense.description}"?`)) {
-      return;
-    }
-
-    deleteExpense(expenseId);
-    setSyncMessage("Gasto removido.", false);
-    renderAll();
-  }
-}
-
-function handleInstallmentListClick(event) {
-  const button = event.target.closest("[data-action]");
-  if (!button || button.disabled) {
-    return;
-  }
-
-  const installmentId = button.dataset.id;
-  const installment = state.installments.find((item) => item.id === installmentId);
-  if (!installment) {
-    return;
-  }
-
-  if (button.dataset.action === "edit-installment") {
-    startInstallmentEdit(installmentId);
-    return;
-  }
-
-  if (button.dataset.action === "increment-paid") {
-    const targetMonth = getNextPendingMonth(installment);
-    if (!targetMonth || isMonthClosed(targetMonth)) {
-      setSyncMessage("A proxima parcela cai em um mes fechado e nao pode ser alterada.", true);
-      renderStatus();
-      return;
-    }
-
-    installment.paidInstallments = Math.min(
-      installment.installmentCount,
-      installment.paidInstallments + 1
-    );
-    installment.updatedAt = nowIso();
-    persistState();
-    setSyncMessage("Parcela marcada como paga.", false);
-    renderAll();
-    return;
-  }
-
-  if (button.dataset.action === "decrement-paid") {
-    const targetMonth =
-      installment.paidInstallments > 0
-        ? addMonths(installment.firstMonth, installment.paidInstallments - 1)
-        : "";
-    if (!targetMonth || isMonthClosed(targetMonth)) {
-      setSyncMessage("A parcela a voltar pertence a um mes fechado e nao pode ser alterada.", true);
-      renderStatus();
-      return;
-    }
-
-    installment.paidInstallments = Math.max(0, installment.paidInstallments - 1);
-    installment.updatedAt = nowIso();
-    persistState();
-    setSyncMessage("Ultima parcela marcada como pendente.", false);
-    renderAll();
-    return;
-  }
-
-  if (button.dataset.action === "delete-installment") {
-    if (getInstallmentClosedMonths(installment).length) {
-      setSyncMessage("Essa compra toca meses fechados e nao pode mais ser excluida.", true);
-      renderStatus();
-      return;
-    }
-
-    if (!window.confirm(`Excluir a compra parcelada "${installment.description}"?`)) {
-      return;
-    }
-
-    deleteInstallment(installmentId);
-    setSyncMessage("Compra parcelada removida.", false);
-    renderAll();
-  }
-}
-
-function handleMonthClosingClick(event) {
-  const button = event.target.closest("[data-action]");
-  if (!button) {
-    return;
-  }
-
-  if (button.dataset.action === "close-month") {
-    closeSelectedMonth();
-    return;
-  }
-
-  if (button.dataset.action === "reopen-month") {
-    reopenSelectedMonth();
-  }
-}
-
-function closeSelectedMonth() {
-  const month = state.settings.selectedMonth;
-  if (isMonthClosed(month)) {
-    return;
-  }
-
-  const summary = getMonthlySummary(month);
-  const nextClosure = serializeMonthClosure(month, summary);
-  nextClosure.status = "closed";
-  nextClosure.closedAt = nowIso();
-  nextClosure.updatedAt = nowIso();
-
-  state.monthClosures = mergeMonthClosures(state.monthClosures, [nextClosure]);
-  persistState();
-  setSyncMessage(`Mes ${formatMonthLabel(month)} fechado.`, false);
-  renderAll();
-}
-
-function reopenSelectedMonth() {
-  const month = state.settings.selectedMonth;
-  const current = getMonthClosure(month);
-  if (!current || current.status !== "closed") {
-    return;
-  }
-
-  const reopened = {
-    ...current,
-    status: "open",
-    updatedAt: nowIso(),
-  };
-  state.monthClosures = mergeMonthClosures(state.monthClosures, [reopened]);
-  persistState();
-  setSyncMessage(`Mes ${formatMonthLabel(month)} reaberto.`, false);
-  renderAll();
-}
-
-function startExpenseEdit(expenseId) {
-  const expense = state.expenses.find((item) => item.id === expenseId);
-  if (!expense) {
-    return;
-  }
-
-  uiState.expenseEditId = expenseId;
-  uiState.activeForm = "expense";
-  dom.expenseForm.elements.entryId.value = expense.id;
-  dom.expenseForm.elements.description.value = expense.description;
-  dom.expenseForm.elements.amount.value = expense.amount;
-  dom.expenseForm.elements.date.value = expense.date;
-  dom.expenseForm.elements.referenceMonth.value = expense.referenceMonth;
-  dom.expenseForm.elements.category.value = expense.category;
-  dom.expenseForm.elements.personId.value = expense.personId;
-  dom.expenseForm.elements.paymentMethod.value = expense.paymentMethod;
-  dom.expenseForm.elements.cardName.value = expense.cardName || "";
-  dom.expenseForm.elements.notes.value = expense.notes || "";
-  renderAll();
-}
-
-function startInstallmentEdit(installmentId) {
-  const installment = state.installments.find((item) => item.id === installmentId);
-  if (!installment) {
-    return;
-  }
-
-  uiState.installmentEditId = installmentId;
-  uiState.activeForm = "installment";
-  dom.installmentForm.elements.entryId.value = installment.id;
-  dom.installmentForm.elements.description.value = installment.description;
-  dom.installmentForm.elements.totalAmount.value = installment.totalAmount;
-  dom.installmentForm.elements.purchaseDate.value = installment.purchaseDate;
-  dom.installmentForm.elements.firstMonth.value = installment.firstMonth;
-  dom.installmentForm.elements.category.value = installment.category;
-  dom.installmentForm.elements.personId.value = installment.personId;
-  dom.installmentForm.elements.cardName.value = installment.cardName;
-  dom.installmentForm.elements.installmentCount.value = installment.installmentCount;
-  dom.installmentForm.elements.notes.value = installment.notes || "";
-  renderAll();
-}
-
-function cancelExpenseEdit(options = {}) {
-  uiState.expenseEditId = "";
-  dom.expenseForm.reset();
-  dom.expenseForm.elements.entryId.value = "";
-  dom.expenseForm.elements.date.value = getCurrentDate();
-  dom.expenseForm.elements.referenceMonth.value = state.settings.selectedMonth;
-  dom.expenseForm.elements.personId.value = state.settings.people[0]?.id || "person-1";
-  if (!options.silent) {
-    renderAll();
-  }
-}
-
-function cancelInstallmentEdit(options = {}) {
-  uiState.installmentEditId = "";
-  dom.installmentForm.reset();
-  dom.installmentForm.elements.entryId.value = "";
-  dom.installmentForm.elements.purchaseDate.value = getCurrentDate();
-  dom.installmentForm.elements.firstMonth.value = state.settings.selectedMonth;
-  dom.installmentForm.elements.personId.value = state.settings.people[0]?.id || "person-1";
-  if (!options.silent) {
-    renderAll();
-  }
-}
-
-function prepareForRealData() {
-  if (!state.seededDemo) {
-    return;
-  }
-
-  state.expenses = [];
-  state.installments = [];
-  state.monthClosures = [];
-  state.deletions = {
-    expenses: [],
-    installments: [],
-  };
-  state.seededDemo = false;
-  state.sync.lastSyncMessage = "Dados de exemplo removidos para comecar seu uso real.";
-}
-
-function installmentTouchesMonth(installment, month) {
-  const index = monthDiff(installment.firstMonth, month) + 1;
-  return index >= 1 && index <= installment.installmentCount;
-}
-
-function installmentMatchesFilters(installment) {
-  if (uiState.filters.type === "expense") {
-    return false;
-  }
-
-  if (
-    uiState.filters.personId !== "all" &&
-    installment.personId !== uiState.filters.personId
-  ) {
-    return false;
-  }
-
-  if (uiState.filters.category !== "all" && installment.category !== uiState.filters.category) {
-    return false;
-  }
-
-  if (uiState.filters.cardName === "__none__") {
-    return false;
-  }
-
-  if (
-    uiState.filters.cardName !== "all" &&
-    installment.cardName !== uiState.filters.cardName
-  ) {
-    return false;
-  }
-
-  const statusKey = getStatusFilterKey(
-    installment.paidInstallments >= installment.installmentCount
-      ? "Pago"
-      : getNextPendingMonth(installment) < state.settings.selectedMonth
-        ? "Em aberto"
-        : "Previsto"
-  );
-  if (uiState.filters.status !== "all" && statusKey !== uiState.filters.status) {
-    return false;
-  }
-
-  if (uiState.filters.search) {
-    const haystack = [
-      installment.description,
-      installment.notes,
-      installment.cardName,
-      installment.category,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    if (!haystack.includes(uiState.filters.search)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-function getInstallmentClosedMonths(installment) {
-  return state.monthClosures
-    .filter((closure) => closure.status === "closed" && installmentTouchesMonth(installment, closure.month))
-    .map((closure) => formatMonthLabel(closure.month));
-}
-
-function serializeMonthClosure(month, summary) {
-  return normalizeMonthClosure({
-    id: month,
-    month,
-    status: "open",
-    closedAt: "",
-    note: "",
-    monthTotal: summary.monthTotal,
-    itemCount: summary.items.length,
-    byPerson: summary.byPerson,
-    categoryTotals: summary.categoryTotals,
-    remainingInstallmentsAmount: summary.remainingInstallmentsAmount,
-    paidInstallmentsAmount: summary.paidInstallmentsAmount,
-    openInstallments: summary.openInstallments,
-    paidInstallmentsCount: summary.paidInstallmentsCount,
-    updatedAt: nowIso(),
-  });
-}
-
-function mergeStates(localState, remoteState) {
-  const normalizedLocal = normalizeState(localState);
-  const normalizedRemote = normalizeState(remoteState);
-
-  const mergedExpenses = mergeCollection(
-    normalizedLocal.expenses,
-    normalizedRemote.expenses,
-    normalizedLocal.deletions.expenses,
-    normalizedRemote.deletions.expenses
-  );
-  const mergedInstallments = mergeCollection(
-    normalizedLocal.installments,
-    normalizedRemote.installments,
-    normalizedLocal.deletions.installments,
-    normalizedRemote.deletions.installments
-  );
-
-  return normalizeState({
-    version: 2,
-    seededDemo: normalizedLocal.seededDemo && normalizedRemote.seededDemo,
-    settings:
-      normalizedRemote.settings.updatedAt > normalizedLocal.settings.updatedAt
-        ? normalizedRemote.settings
-        : normalizedLocal.settings,
-    sync:
-      (normalizedRemote.sync.lastSyncedAt || "") > (normalizedLocal.sync.lastSyncedAt || "")
-        ? normalizedRemote.sync
-        : normalizedLocal.sync,
-    expenses: mergedExpenses.items,
-    installments: mergedInstallments.items,
-    monthClosures: mergeMonthClosures(
-      normalizedLocal.monthClosures,
-      normalizedRemote.monthClosures
-    ),
-    deletions: {
-      expenses: mergedExpenses.deletions,
-      installments: mergedInstallments.deletions,
-    },
-  });
 }
