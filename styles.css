@@ -16,6 +16,7 @@
   --radius-xl: 30px;
   --radius-lg: 20px;
   --radius-md: 14px;
+  color-scheme: dark;
 }
 
 * {
@@ -285,6 +286,12 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+select option,
+select optgroup {
+  color: #071019;
+  background: #eef3f6;
 }
 
 input::placeholder {

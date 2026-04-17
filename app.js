@@ -174,7 +174,6 @@ function wireEvents() {
   bindEvent(dom.budgetForm, "submit", handleBudgetSubmit);
   bindEvent(dom.clearBudgetButton, "click", clearBudget);
   bindEvent(dom.budgetAmountInput, "input", handleMoneyInput);
-  window.addEventListener("focus", handleWindowFocus);
 }
 
 function createEmptyState() {
@@ -1288,7 +1287,6 @@ function handleMonthChange() {
 
   state.settings.selectedMonth = dom.selectedMonth.value;
   persistState();
-  scheduleAutoSync("month");
 }
 
 function handleFilterChange() {
@@ -1607,10 +1605,6 @@ function handleMoneyInput(event) {
   }
 }
 
-function handleWindowFocus() {
-  scheduleAutoSync("focus");
-}
-
 function scheduleAutoSync(reason = "update") {
   if (!state?.sync?.scriptUrl) {
     return;
@@ -1630,7 +1624,10 @@ async function syncWithGoogle(options = {}) {
   }
 
   syncInFlight = true;
-  const syncToastId = showToast("Sincronizando...", { tone: "info", sticky: true });
+  const showSyncFeedback = shouldShowSyncFeedback(options.reason);
+  const syncToastId = showSyncFeedback
+    ? showToast("Sincronizando...", { tone: "info", sticky: true })
+    : 0;
   try {
     setSyncMessage(
       options.automated
@@ -1650,11 +1647,13 @@ async function syncWithGoogle(options = {}) {
         : "Sincronização concluída com sucesso.",
       true
     );
-    showToast("Sincronizado.", {
-      toastId: syncToastId,
-      tone: "success",
-      duration: 1200,
-    });
+    if (showSyncFeedback) {
+      showToast("Sincronizado.", {
+        toastId: syncToastId,
+        tone: "success",
+        duration: 1200,
+      });
+    }
     persistState();
   } catch (error) {
     console.error(error);
@@ -1663,7 +1662,7 @@ async function syncWithGoogle(options = {}) {
       false
     );
     showToast("Falha ao sincronizar.", {
-      toastId: syncToastId,
+      toastId: syncToastId || undefined,
       tone: "error",
       duration: 2200,
     });
@@ -1675,6 +1674,10 @@ async function syncWithGoogle(options = {}) {
       scheduleAutoSync("queued");
     }
   }
+}
+
+function shouldShowSyncFeedback(reason = "") {
+  return ["init", "purchase", "card", "budget"].includes(reason);
 }
 
 async function fetchRemoteState(scriptUrl) {
