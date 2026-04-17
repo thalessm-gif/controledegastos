@@ -94,9 +94,6 @@ function init() {
   state = loadState();
   state.settings.selectedMonth = getCurrentMonth();
   wireEvents();
-  if (dom.purchaseForm?.elements?.date) {
-    dom.purchaseForm.elements.date.value = getCurrentDate();
-  }
   renderAll();
   scheduleAutoSync("init");
 }
@@ -459,19 +456,19 @@ function buildCustomCategoryLabel(value) {
 
 function getCurrentCategoryValueFromUi() {
   if (!dom.categorySelect) {
-    return DEFAULT_CATEGORIES[0];
+    return "";
   }
   const selectedValue = cleanText(dom.categorySelect?.value);
   if (selectedValue === OTHER_CATEGORY_VALUE) {
     return buildCustomCategoryLabel(dom.customCategoryInput?.value) || OTHER_CATEGORY_VALUE;
   }
-  return selectedValue || DEFAULT_CATEGORIES[0];
+  return selectedValue;
 }
 
 function getCategoryFieldState(categoryValue) {
   const category = cleanText(categoryValue);
   if (!category) {
-    return { selectValue: DEFAULT_CATEGORIES[0], customValue: "" };
+    return { selectValue: "", customValue: "" };
   }
   if (category === OTHER_CATEGORY_VALUE) {
     return { selectValue: OTHER_CATEGORY_VALUE, customValue: "" };
@@ -487,9 +484,12 @@ function getCategoryFieldState(categoryValue) {
 
 function getCategoryFromForm() {
   if (!dom.categorySelect) {
-    return DEFAULT_CATEGORIES[0];
+    return "";
   }
   const selectedValue = cleanText(dom.categorySelect.value);
+  if (!selectedValue) {
+    return "";
+  }
   if (selectedValue === OTHER_CATEGORY_VALUE) {
     return buildCustomCategoryLabel(dom.customCategoryInput.value);
   }
@@ -834,20 +834,34 @@ function renderSelectOptions() {
   }
 
   const categoryState = getCategoryFieldState(getCurrentCategoryValueFromUi());
+  const selectedResponsible = cleanText(dom.purchaseForm.elements.responsible.value);
+  const selectedPaymentType = cleanText(dom.paymentTypeSelect?.value);
   setSelectOptions(
     dom.responsibleSelect,
-    PEOPLE.map((person) => ({ value: person.id, label: person.name })),
-    dom.purchaseForm.elements.responsible.value || "thales"
+    [{ value: "", label: "Escolher" }].concat(
+      PEOPLE.map((person) => ({ value: person.id, label: person.name }))
+    ),
+    selectedResponsible
   );
   setSelectOptions(
     dom.categorySelect,
-    DEFAULT_CATEGORIES.map((category) => ({ value: category, label: category })).concat({
-      value: OTHER_CATEGORY_VALUE,
-      label: "Outro (digitar)",
-    }),
+    [{ value: "", label: "Escolher" }].concat(
+      DEFAULT_CATEGORIES.map((category) => ({ value: category, label: category })),
+      {
+        value: OTHER_CATEGORY_VALUE,
+        label: "Outro (digitar)",
+      }
+    ),
     categoryState.selectValue
   );
   dom.customCategoryInput.value = categoryState.customValue;
+  setSelectOptions(
+    dom.paymentTypeSelect,
+    [{ value: "", label: "Escolher" }].concat(
+      Object.entries(PAYMENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))
+    ),
+    selectedPaymentType
+  );
   setSelectOptions(
     dom.cardSelect,
     [{ value: "", label: "Não se aplica" }].concat(
@@ -929,6 +943,10 @@ function renderPurchaseFormState() {
         : isCustomCategory
           ? "Use Outro para detalhar uma categoria livre sem bagunçar a lista principal."
           : "Se for no crédito, o sistema calcula sozinho o mês de cobrança.";
+
+  if (!editing && !dom.paymentTypeSelect.value) {
+    dom.purchaseFormHint.textContent = "Escolha os campos principais para registrar o gasto.";
+  }
 
   if (dom.cardSubmitButton && dom.cardCancelButton && dom.cardFormHint) {
     dom.cardSubmitButton.textContent = uiState.cardEditId ? "Salvar alterações" : "Salvar cartão";
@@ -1781,4 +1799,311 @@ function mergeCollection(localItems, remoteItems, localDeletions, remoteDeletion
     items: items.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     deletions: Array.from(deletionsById.values()),
   };
+}
+
+function renderSelectOptions() {
+  if (!(dom.purchaseForm && dom.responsibleSelect && dom.categorySelect && dom.cardSelect)) {
+    if (dom.summaryResponsibleFilter) {
+      setSelectOptions(
+        dom.summaryResponsibleFilter,
+        [{ value: "all", label: "Todos" }].concat(
+          PEOPLE.map((person) => ({ value: person.id, label: person.name }))
+        ),
+        uiState.filters.responsible
+      );
+    }
+
+    if (dom.summaryCardFilter) {
+      setSelectOptions(
+        dom.summaryCardFilter,
+        [{ value: "all", label: "Todos" }, { value: "__sem_cartao__", label: "Sem cartão" }].concat(
+          state.cards.map((card) => ({ value: card.id, label: card.name }))
+        ),
+        uiState.filters.cardId
+      );
+    }
+
+    if (dom.budgetForm) {
+      dom.budgetForm.elements.budgetAmount.value = formatMoneyInputValue(state.settings.budgetAmount);
+      dom.budgetForm.elements.budgetOwner.value = state.settings.budgetOwner || "";
+    }
+    return;
+  }
+
+  const categoryState = getCategoryFieldState(getCurrentCategoryValueFromUi());
+  const selectedResponsible = cleanText(dom.purchaseForm.elements.responsible.value);
+  const selectedPaymentType = cleanText(dom.paymentTypeSelect?.value);
+
+  setSelectOptions(
+    dom.responsibleSelect,
+    [{ value: "", label: "Escolher" }].concat(
+      PEOPLE.map((person) => ({ value: person.id, label: person.name }))
+    ),
+    selectedResponsible
+  );
+
+  setSelectOptions(
+    dom.categorySelect,
+    [{ value: "", label: "Escolher" }].concat(
+      DEFAULT_CATEGORIES.map((category) => ({ value: category, label: category })),
+      { value: OTHER_CATEGORY_VALUE, label: "Outro (digitar)" }
+    ),
+    categoryState.selectValue
+  );
+  dom.customCategoryInput.value = categoryState.customValue;
+
+  setSelectOptions(
+    dom.paymentTypeSelect,
+    [{ value: "", label: "Escolher" }].concat(
+      Object.entries(PAYMENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))
+    ),
+    selectedPaymentType
+  );
+
+  setSelectOptions(
+    dom.cardSelect,
+    [{ value: "", label: "Não se aplica" }].concat(
+      state.cards.map((card) => ({ value: card.id, label: card.name }))
+    ),
+    dom.purchaseForm.elements.cardId.value || ""
+  );
+
+  setSelectOptions(
+    dom.summaryResponsibleFilter,
+    [{ value: "all", label: "Todos" }].concat(
+      PEOPLE.map((person) => ({ value: person.id, label: person.name }))
+    ),
+    uiState.filters.responsible
+  );
+
+  setSelectOptions(
+    dom.summaryCardFilter,
+    [{ value: "all", label: "Todos" }, { value: "__sem_cartao__", label: "Sem cartão" }].concat(
+      state.cards.map((card) => ({ value: card.id, label: card.name }))
+    ),
+    uiState.filters.cardId
+  );
+
+  if (dom.budgetForm) {
+    dom.budgetForm.elements.budgetAmount.value = formatMoneyInputValue(state.settings.budgetAmount);
+    dom.budgetForm.elements.budgetOwner.value = state.settings.budgetOwner || "";
+  }
+}
+
+function renderPurchaseFormState() {
+  if (
+    !dom.purchaseForm ||
+    !dom.categorySelect ||
+    !dom.paymentTypeSelect ||
+    !dom.cardSelect ||
+    !dom.installmentsInput ||
+    !dom.purchaseSubmitButton ||
+    !dom.purchaseCancelButton ||
+    !dom.purchaseFormHint
+  ) {
+    return;
+  }
+
+  const editing = Boolean(uiState.purchaseEditId);
+  const isCredit = dom.paymentTypeSelect.value === "credito";
+  const isCustomCategory = dom.categorySelect.value === OTHER_CATEGORY_VALUE;
+
+  dom.cardSelect.disabled = !isCredit;
+  dom.installmentsInput.disabled = !isCredit;
+  if (!isCredit) {
+    dom.cardSelect.value = "";
+    dom.installmentsInput.value = "1";
+  }
+
+  dom.customCategoryField.classList.toggle("hidden", !isCustomCategory);
+  dom.customCategoryInput.disabled = !isCustomCategory;
+  dom.customCategoryInput.required = isCustomCategory;
+  if (!isCustomCategory) {
+    dom.customCategoryInput.value = "";
+  }
+
+  dom.purchaseSubmitButton.textContent = editing ? "Salvar alterações" : "Salvar gasto";
+  dom.purchaseCancelButton.classList.toggle("hidden", !editing);
+
+  if (editing) {
+    dom.purchaseFormHint.textContent = "Você está editando uma compra já cadastrada.";
+  } else if (!dom.paymentTypeSelect.value) {
+    dom.purchaseFormHint.textContent = "Escolha os campos principais para registrar o gasto.";
+  } else if (isCredit && !state.cards.length) {
+    dom.purchaseFormHint.textContent = "Cadastre um cartão antes de lançar compras no crédito.";
+  } else if (isCustomCategory) {
+    dom.purchaseFormHint.textContent = "Use Outro para detalhar uma categoria livre sem bagunçar a lista principal.";
+  } else {
+    dom.purchaseFormHint.textContent = "Se for no crédito, o sistema calcula sozinho o mês de cobrança.";
+  }
+
+  if (dom.cardSubmitButton && dom.cardCancelButton && dom.cardFormHint) {
+    dom.cardSubmitButton.textContent = uiState.cardEditId ? "Salvar alterações" : "Salvar cartão";
+    dom.cardCancelButton.classList.toggle("hidden", !uiState.cardEditId);
+    dom.cardFormHint.textContent = uiState.cardEditId
+      ? "Editar um cartão recalcula as compras ligadas a ele."
+      : "O fechamento define em qual mês cada compra entra.";
+  }
+}
+
+function renderMonthCharges() {
+  if (!dom.monthSummaryText || !dom.monthCharges) {
+    return;
+  }
+
+  const summary = getMonthlySummary(state.settings.selectedMonth);
+  const filteredCharges = applySummaryFilters(summary.charges);
+  const filteredTotal = sum(filteredCharges.map((charge) => charge.amount));
+
+  dom.monthSummaryText.textContent =
+    filteredCharges.length > 0
+      ? `${filteredCharges.length} item(ns) cobrados no mês, somando ${formatCurrency(filteredTotal)}.`
+      : `Nenhum gasto encontrado para ${formatMonthLabel(state.settings.selectedMonth)} com os filtros atuais.`;
+
+  if (!filteredCharges.length) {
+    dom.monthCharges.innerHTML = `
+      <div class="empty-state">
+        <p>Quando vocês começarem a lançar compras, o mês aparece aqui já organizado pela cobrança certa.</p>
+      </div>
+    `;
+    return;
+  }
+
+  dom.monthCharges.innerHTML = filteredCharges
+    .map((charge) => {
+      const metaItems = [
+        `Compra em ${formatDate(charge.purchaseDate)}`,
+        charge.paymentTypeLabel,
+        charge.cardName ? `Cartão ${charge.cardName}` : `Lançado em ${formatMonthLabel(charge.chargeMonth)}`,
+      ];
+
+      if (charge.paymentType === "credito") {
+        metaItems.push(`Parcela ${charge.installmentIndex}/${charge.installments}`);
+        metaItems.push(`Vence em ${formatDate(charge.dueDate)}`);
+      }
+
+      return `
+        <article class="charge-card">
+          <div class="charge-card-head">
+            <div class="charge-card-main">
+              <strong class="charge-card-title">${escapeHtml(charge.category)}</strong>
+              <span class="tag tag-neutral">${escapeHtml(charge.responsibleLabel)}</span>
+            </div>
+            <strong class="charge-card-amount">${escapeHtml(formatCurrency(charge.amount))}</strong>
+          </div>
+          <div class="charge-card-meta">
+            ${metaItems.map((item) => `<span class="charge-card-line">${escapeHtml(item)}</span>`).join("")}
+            ${
+              charge.notes
+                ? `<span class="charge-card-line charge-card-note">Observação: ${escapeHtml(charge.notes)}</span>`
+                : ""
+            }
+          </div>
+          <div class="charge-card-actions">
+            <button class="ghost-button" type="button" data-action="edit-purchase" data-id="${escapeHtml(charge.purchaseId)}">Editar</button>
+            <button class="ghost-button" type="button" data-action="delete-purchase" data-id="${escapeHtml(charge.purchaseId)}">Excluir</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function handlePurchaseSubmit(event) {
+  event.preventDefault();
+
+  const form = new FormData(dom.purchaseForm);
+  const responsible = cleanText(form.get("responsible"));
+  const date = cleanText(form.get("date"));
+  const paymentType = cleanText(form.get("paymentType"));
+  const cardId = cleanText(form.get("cardId"));
+  const category = getCategoryFromForm();
+  const installments =
+    paymentType === "credito" ? clampInteger(form.get("installments"), 1, 48, 1) : 1;
+
+  if (!PEOPLE.some((person) => person.id === responsible)) {
+    setSyncMessage("Escolha quem fez o gasto.", false);
+    showToast("Escolha o responsável.", { tone: "error", duration: 1800 });
+    return;
+  }
+
+  if (!isValidDate(date)) {
+    setSyncMessage("Escolha a data do gasto.", false);
+    showToast("Escolha a data do gasto.", { tone: "error", duration: 1800 });
+    return;
+  }
+
+  if (!category) {
+    setSyncMessage("Escolha a categoria do gasto.", false);
+    showToast("Escolha a categoria.", { tone: "error", duration: 1800 });
+    return;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(PAYMENT_TYPE_LABELS, paymentType)) {
+    setSyncMessage("Escolha o tipo de pagamento.", false);
+    showToast("Escolha o tipo de pagamento.", { tone: "error", duration: 1800 });
+    return;
+  }
+
+  if (dom.categorySelect.value === OTHER_CATEGORY_VALUE && !category) {
+    setSyncMessage("Descreva a categoria quando escolher Outro.", false);
+    showToast("Descreva a categoria em Outro.", { tone: "error", duration: 1800 });
+    return;
+  }
+
+  if (paymentType === "credito" && !cardId) {
+    setSyncMessage("Selecione um cartão para compras no crédito.", false);
+    showToast("Selecione um cartão para o crédito.", { tone: "error", duration: 1800 });
+    return;
+  }
+
+  const purchase = normalizePurchase({
+    id: cleanText(form.get("entryId")) || createId("purchase"),
+    responsible,
+    date,
+    amount: form.get("amount"),
+    category,
+    paymentType,
+    cardId,
+    installments,
+    notes: form.get("notes"),
+    updatedAt: nowIso(),
+  });
+
+  if (!purchase) {
+    setSyncMessage("Não foi possível salvar esse gasto.", false);
+    showToast("Confira o valor do gasto.", { tone: "error", duration: 1800 });
+    return;
+  }
+
+  if (uiState.purchaseEditId) {
+    state.purchases = state.purchases.map((item) => (item.id === purchase.id ? purchase : item));
+    setSyncMessage("Gasto atualizado no painel local.", false);
+    showToast("Lançamento atualizado.", { tone: "success", duration: 1600 });
+  } else {
+    state.purchases.unshift(purchase);
+    setSyncMessage("Gasto salvo no painel local.", false);
+    showToast("Lançamento cadastrado.", { tone: "success", duration: 1600 });
+  }
+
+  cancelPurchaseEdit({ silent: true });
+  persistAndAutoSync("purchase");
+}
+
+function cancelPurchaseEdit(options = {}) {
+  uiState.purchaseEditId = "";
+  dom.purchaseForm.reset();
+  dom.purchaseForm.elements.entryId.value = "";
+  dom.purchaseForm.elements.responsible.value = "";
+  dom.purchaseForm.elements.date.value = "";
+  dom.categorySelect.value = "";
+  dom.customCategoryInput.value = "";
+  dom.paymentTypeSelect.value = "";
+  dom.cardSelect.value = "";
+  dom.installmentsInput.value = "1";
+  dom.purchaseForm.elements.notes.value = "";
+
+  if (!options.silent) {
+    renderAll();
+  }
 }

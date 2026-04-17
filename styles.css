@@ -537,6 +537,67 @@ td strong {
   gap: 0.8rem;
 }
 
+.charge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.charge-card {
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.charge-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.charge-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.charge-card-title {
+  display: block;
+  font-size: 1.02rem;
+  line-height: 1.35;
+}
+
+.charge-card-amount {
+  white-space: nowrap;
+  font-size: 1.08rem;
+}
+
+.charge-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+  margin-top: 0.9rem;
+}
+
+.charge-card-line {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.charge-card-note {
+  color: var(--text);
+}
+
+.charge-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
 .card-summary-head,
 .line-between,
 .card-row-head,
