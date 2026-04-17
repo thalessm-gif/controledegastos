@@ -68,8 +68,12 @@ const PAYMENT_TYPE_LABELS = {
   dinheiro: "Dinheiro",
   boleto: "Boleto",
 };
+const AUTO_SYNC_DELAY_MS = 1400;
 
 let state = null;
+let autoSyncTimer = 0;
+let syncInFlight = false;
+let syncQueued = false;
 const uiState = {
   purchaseEditId: "",
   cardEditId: "",
@@ -86,19 +90,21 @@ document.addEventListener("DOMContentLoaded", init);
 function init() {
   cacheDom();
   state = loadState();
+  state.settings.selectedMonth = getCurrentMonth();
   wireEvents();
   dom.purchaseForm.elements.date.value = getCurrentDate();
   renderAll();
+  scheduleAutoSync("init");
 }
 
 function cacheDom() {
   dom.selectedMonth = document.querySelector("#selectedMonth");
-  dom.syncButton = document.querySelector("#syncButton");
   dom.statusBadge = document.querySelector("#statusBadge");
   dom.syncStatus = document.querySelector("#syncStatus");
   dom.statsGrid = document.querySelector("#statsGrid");
 
   dom.purchaseForm = document.querySelector("#purchaseForm");
+  dom.purchaseAmountInput = document.querySelector("#purchaseAmountInput");
   dom.responsibleSelect = document.querySelector("#responsibleSelect");
   dom.categorySelect = document.querySelector("#categorySelect");
   dom.customCategoryField = document.querySelector("#customCategoryField");
@@ -127,13 +133,13 @@ function cacheDom() {
   dom.installmentOverview = document.querySelector("#installmentOverview");
 
   dom.budgetForm = document.querySelector("#budgetForm");
+  dom.budgetAmountInput = document.querySelector("#budgetAmountInput");
   dom.clearBudgetButton = document.querySelector("#clearBudgetButton");
   dom.budgetSummary = document.querySelector("#budgetSummary");
 }
 
 function wireEvents() {
   dom.selectedMonth.addEventListener("change", handleMonthChange);
-  dom.syncButton.addEventListener("click", syncWithGoogle);
 
   dom.purchaseForm.addEventListener("submit", handlePurchaseSubmit);
   dom.purchaseCancelButton.addEventListener("click", cancelPurchaseEdit);
@@ -143,7 +149,7 @@ function wireEvents() {
   dom.cardSelect.addEventListener("change", renderPurchasePreview);
   dom.installmentsInput.addEventListener("input", renderPurchasePreview);
   dom.purchaseForm.elements.date.addEventListener("change", renderPurchasePreview);
-  dom.purchaseForm.elements.amount.addEventListener("input", renderPurchasePreview);
+  dom.purchaseAmountInput.addEventListener("input", handleMoneyInput);
 
   dom.summaryResponsibleFilter.addEventListener("change", handleFilterChange);
   dom.summaryCardFilter.addEventListener("change", handleFilterChange);
@@ -156,6 +162,8 @@ function wireEvents() {
 
   dom.budgetForm.addEventListener("submit", handleBudgetSubmit);
   dom.clearBudgetButton.addEventListener("click", clearBudget);
+  dom.budgetAmountInput.addEventListener("input", handleMoneyInput);
+  window.addEventListener("focus", handleWindowFocus);
 }
 
 function createEmptyState() {
@@ -314,6 +322,11 @@ function persistState(options = {}) {
   }
 }
 
+function persistAndAutoSync(reason) {
+  persistState();
+  scheduleAutoSync(reason);
+}
+
 function cleanText(value) {
   return String(value || "").trim();
 }
@@ -323,11 +336,55 @@ function normalizeCardName(value) {
 }
 
 function normalizeMoney(value) {
-  const parsed = Number.parseFloat(String(value || "").replace(",", "."));
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.round(value * 100) / 100;
+  }
+
+  const rawValue = String(value || "").trim();
+  if (!rawValue) {
+    return 0;
+  }
+
+  const parsed = Number.parseFloat(
+    rawValue
+      .replace(/\s+/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".")
+      .replace(/[^\d.-]/g, "")
+  );
   if (!Number.isFinite(parsed)) {
     return 0;
   }
   return Math.round(parsed * 100) / 100;
+}
+
+function getMoneyDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function formatDigitsAsMoney(value) {
+  const digits = getMoneyDigits(value);
+  if (!digits) {
+    return "";
+  }
+
+  const centsValue = Number.parseInt(digits, 10) / 100;
+  return centsValue.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatMoneyInputValue(value) {
+  const amount = normalizeMoney(value);
+  if (!amount) {
+    return "";
+  }
+
+  return amount.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function clampInteger(value, min, max, fallback) {
@@ -763,7 +820,7 @@ function renderSelectOptions() {
     uiState.filters.cardId
   );
 
-  dom.budgetForm.elements.budgetAmount.value = state.settings.budgetAmount || "";
+  dom.budgetForm.elements.budgetAmount.value = formatMoneyInputValue(state.settings.budgetAmount);
   dom.budgetForm.elements.budgetOwner.value = state.settings.budgetOwner || "";
 }
 
@@ -1140,6 +1197,7 @@ function handleMonthChange() {
 
   state.settings.selectedMonth = dom.selectedMonth.value;
   persistState();
+  scheduleAutoSync("month");
 }
 
 function handleFilterChange() {
@@ -1206,7 +1264,7 @@ function handlePurchaseSubmit(event) {
   }
 
   cancelPurchaseEdit({ silent: true });
-  persistState();
+  persistAndAutoSync("purchase");
 }
 
 function handleMonthChargesClick(event) {
@@ -1234,7 +1292,7 @@ function handleMonthChargesClick(event) {
     state.deletions.purchases = upsertDeletion(state.deletions.purchases, purchaseId);
     cancelPurchaseEdit({ silent: true });
     setSyncMessage("Compra excluída do painel local.", false);
-    persistState();
+    persistAndAutoSync("purchase");
   }
 }
 
@@ -1248,7 +1306,7 @@ function startPurchaseEdit(purchaseId) {
   dom.purchaseForm.elements.entryId.value = purchase.id;
   dom.purchaseForm.elements.responsible.value = purchase.responsible;
   dom.purchaseForm.elements.date.value = purchase.date;
-  dom.purchaseForm.elements.amount.value = purchase.amount;
+  dom.purchaseForm.elements.amount.value = formatMoneyInputValue(purchase.amount);
   const categoryState = getCategoryFieldState(purchase.category);
   dom.categorySelect.value = categoryState.selectValue;
   dom.customCategoryInput.value = categoryState.customValue;
@@ -1302,7 +1360,7 @@ function handleCardSubmit(event) {
   }
 
   cancelCardEdit({ silent: true });
-  persistState();
+  persistAndAutoSync("card");
 }
 
 function handleCardListClick(event) {
@@ -1337,7 +1395,7 @@ function handleCardListClick(event) {
     state.deletions.cards = upsertDeletion(state.deletions.cards, cardId);
     cancelCardEdit({ silent: true });
     setSyncMessage("Cartão excluído do painel local.", false);
-    persistState();
+    persistAndAutoSync("card");
   }
 }
 
@@ -1372,7 +1430,7 @@ function handleBudgetSubmit(event) {
   state.settings.budgetOwner = normalizeBudgetOwner(form.get("budgetOwner"));
   state.settings.updatedAt = nowIso();
   setSyncMessage("Orçamento salvo no painel local.", false);
-  persistState();
+  persistAndAutoSync("budget");
 }
 
 function clearBudget() {
@@ -1380,7 +1438,7 @@ function clearBudget() {
   state.settings.budgetOwner = "";
   state.settings.updatedAt = nowIso();
   setSyncMessage("Orçamento limpo no painel local.", false);
-  persistState();
+  persistAndAutoSync("budget");
 }
 
 function upsertDeletion(list, id) {
@@ -1394,16 +1452,55 @@ function setSyncMessage(message, markSynced) {
   }
 }
 
-async function syncWithGoogle() {
+function handleMoneyInput(event) {
+  event.target.value = formatDigitsAsMoney(event.target.value);
+  if (event.target === dom.purchaseAmountInput) {
+    renderPurchasePreview();
+  }
+}
+
+function handleWindowFocus() {
+  scheduleAutoSync("focus");
+}
+
+function scheduleAutoSync(reason = "update") {
+  if (!state?.sync?.scriptUrl) {
+    return;
+  }
+
+  window.clearTimeout(autoSyncTimer);
+  autoSyncTimer = window.setTimeout(() => {
+    autoSyncTimer = 0;
+    void syncWithGoogle({ automated: true, reason });
+  }, reason === "init" ? 150 : AUTO_SYNC_DELAY_MS);
+}
+
+async function syncWithGoogle(options = {}) {
+  if (syncInFlight) {
+    syncQueued = true;
+    return;
+  }
+
+  syncInFlight = true;
   try {
-    setSyncMessage("Sincronizando com Google Sheets...", false);
+    setSyncMessage(
+      options.automated
+        ? "Sincronizando automaticamente com o Google Sheets..."
+        : "Sincronizando com Google Sheets...",
+      false
+    );
     renderStatus();
 
     const remoteState = await fetchRemoteState(state.sync.scriptUrl);
     const merged = mergeStates(state, remoteState);
     const saved = await pushRemoteState(state.sync.scriptUrl, merged);
     state = mergeStates(merged, saved);
-    setSyncMessage("Sincronização concluída com sucesso.", true);
+    setSyncMessage(
+      options.automated
+        ? "Dados sincronizados automaticamente."
+        : "Sincronização concluída com sucesso.",
+      true
+    );
     persistState();
   } catch (error) {
     console.error(error);
@@ -1412,6 +1509,12 @@ async function syncWithGoogle() {
       false
     );
     renderStatus();
+  } finally {
+    syncInFlight = false;
+    if (syncQueued) {
+      syncQueued = false;
+      scheduleAutoSync("queued");
+    }
   }
 }
 

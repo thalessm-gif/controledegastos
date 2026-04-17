@@ -16,8 +16,8 @@
           <p class="eyebrow">Casa de THALES e CÁTIA</p>
           <h1>Controle da Casa</h1>
           <p class="hero-text">
-            Um painel mais pessoal para lançar compras rapidamente, entender em
-            qual fatura cada gasto vai cair e acompanhar o mês com mais clareza.
+            Lançamento rápido para o dia a dia, com cobrança automática no mês
+            certo de cada cartão e visão clara do que está pesando na casa.
           </p>
         </div>
 
@@ -26,9 +26,10 @@
             <span>Mês em foco</span>
             <input id="selectedMonth" type="month" />
           </label>
-          <button id="syncButton" class="button button-secondary" type="button">
-            Sincronizar dados
-          </button>
+          <p class="sync-note">
+            A página sincroniza sozinha ao abrir e também depois de cada
+            lançamento salvo.
+          </p>
         </div>
       </header>
 
@@ -36,8 +37,6 @@
         <div class="status-pill" id="statusBadge">Carregando painel...</div>
         <div class="status-pill" id="syncStatus">Sincronização ainda não executada.</div>
       </section>
-
-      <section class="stats-grid" id="statsGrid"></section>
 
       <section class="workspace-grid">
         <section class="panel panel-wide">
@@ -65,10 +64,11 @@
                 <span>Valor</span>
                 <input
                   name="amount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  inputmode="decimal"
+                  id="purchaseAmountInput"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="0,00"
                   required
                 />
               </label>
@@ -150,46 +150,6 @@
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="panel-kicker">Mês selecionado</p>
-              <h2>Gastos do mês</h2>
-            </div>
-          </div>
-
-          <div class="mini-filters">
-            <label class="field">
-              <span>Responsável</span>
-              <select id="summaryResponsibleFilter"></select>
-            </label>
-
-            <label class="field">
-              <span>Cartão</span>
-              <select id="summaryCardFilter"></select>
-            </label>
-
-            <div class="filter-action">
-              <button id="clearSummaryFilters" class="button button-secondary" type="button">
-                Limpar filtros
-              </button>
-            </div>
-          </div>
-
-          <div id="monthSummaryText" class="table-summary"></div>
-          <div id="monthCharges" class="table-wrap"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">Cartões</p>
-              <h2>Resumo dos cartões no mês</h2>
-            </div>
-          </div>
-          <div id="cardSummaries" class="stack-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
               <p class="panel-kicker">Cadastro</p>
               <h2>Cartões cadastrados</h2>
             </div>
@@ -237,16 +197,6 @@
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="panel-kicker">Parcelados</p>
-              <h2>Compras parceladas ativas</h2>
-            </div>
-          </div>
-          <div id="installmentOverview" class="stack-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
               <p class="panel-kicker">Opcional</p>
               <h2>Orçamento</h2>
             </div>
@@ -258,11 +208,11 @@
                 <span>Valor do orçamento</span>
                 <input
                   name="budgetAmount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  inputmode="decimal"
-                  placeholder="Deixe vazio se não quiser usar"
+                  id="budgetAmountInput"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="0,00"
                 />
               </label>
 
@@ -288,6 +238,60 @@
           </form>
 
           <div id="budgetSummary" class="info-card"></div>
+        </section>
+      </section>
+
+      <section class="stats-grid" id="statsGrid"></section>
+
+      <section class="workspace-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Mês selecionado</p>
+              <h2>Gastos do mês</h2>
+            </div>
+          </div>
+
+          <div class="mini-filters">
+            <label class="field">
+              <span>Responsável</span>
+              <select id="summaryResponsibleFilter"></select>
+            </label>
+
+            <label class="field">
+              <span>Cartão</span>
+              <select id="summaryCardFilter"></select>
+            </label>
+
+            <div class="filter-action">
+              <button id="clearSummaryFilters" class="button button-secondary" type="button">
+                Limpar filtros
+              </button>
+            </div>
+          </div>
+
+          <div id="monthSummaryText" class="table-summary"></div>
+          <div id="monthCharges" class="table-wrap"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Cartões</p>
+              <h2>Resumo dos cartões no mês</h2>
+            </div>
+          </div>
+          <div id="cardSummaries" class="stack-list"></div>
+        </section>
+
+        <section class="panel panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Parcelados</p>
+              <h2>Compras parceladas ativas</h2>
+            </div>
+          </div>
+          <div id="installmentOverview" class="stack-list"></div>
         </section>
       </section>
     </main>

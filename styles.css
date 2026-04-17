@@ -298,6 +298,12 @@ select:focus {
   gap: 0.45rem;
 }
 
+.sync-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .button {
   min-height: 50px;
   padding: 0.85rem 1.2rem;
