@@ -66,6 +66,7 @@
           </div>
 
           <form id="expenseForm" class="entry-form">
+            <input name="entryId" type="hidden" />
             <div class="form-grid">
               <label class="field">
                 <span>Descrição</span>
@@ -121,18 +122,41 @@
                 </select>
               </label>
 
+              <label class="field">
+                <span>Cartao</span>
+                <input
+                  name="cardName"
+                  type="text"
+                  maxlength="40"
+                  placeholder="Opcional se foi no credito"
+                />
+              </label>
+
               <label class="field field-full">
                 <span>Observação</span>
                 <input name="notes" type="text" maxlength="140" />
               </label>
             </div>
 
-            <div class="form-actions">
-              <button class="button" type="submit">Salvar gasto</button>
+            <div class="form-actions split-actions">
+              <span id="expenseFormHint" class="form-hint">
+                Registre compras do dia a dia e deixe o mes de referencia certo.
+              </span>
+              <button
+                id="expenseCancelButton"
+                class="button button-secondary hidden"
+                type="button"
+              >
+                Cancelar edicao
+              </button>
+              <button id="expenseSubmitButton" class="button" type="submit">
+                Salvar gasto
+              </button>
             </div>
           </form>
 
           <form id="installmentForm" class="entry-form hidden">
+            <input name="entryId" type="hidden" />
             <div class="form-grid">
               <label class="field">
                 <span>Descrição</span>
@@ -200,8 +224,20 @@
               </label>
             </div>
 
-            <div class="form-actions">
-              <button class="button" type="submit">Salvar parcelado</button>
+            <div class="form-actions split-actions">
+              <span id="installmentFormHint" class="form-hint">
+                Use para compras grandes no cartao e acompanhe parcela por parcela.
+              </span>
+              <button
+                id="installmentCancelButton"
+                class="button button-secondary hidden"
+                type="button"
+              >
+                Cancelar edicao
+              </button>
+              <button id="installmentSubmitButton" class="button" type="submit">
+                Salvar parcelado
+              </button>
             </div>
           </form>
         </section>
@@ -213,7 +249,59 @@
               <h2>Resumo de lançamentos</h2>
             </div>
           </div>
+          <div class="filter-toolbar">
+            <label class="field">
+              <span>Buscar</span>
+              <input id="searchFilter" type="search" placeholder="Descricao ou observacao" />
+            </label>
+            <label class="field">
+              <span>Pessoa</span>
+              <select id="personFilter"></select>
+            </label>
+            <label class="field">
+              <span>Categoria</span>
+              <select id="categoryFilter"></select>
+            </label>
+            <label class="field">
+              <span>Cartao</span>
+              <select id="cardFilter"></select>
+            </label>
+            <label class="field">
+              <span>Tipo</span>
+              <select id="typeFilter">
+                <option value="all">Todos</option>
+                <option value="expense">Gastos do mes</option>
+                <option value="installment">Parcelados</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Status</span>
+              <select id="statusFilter">
+                <option value="all">Todos</option>
+                <option value="lancado">Lancado</option>
+                <option value="pago">Pago</option>
+                <option value="previsto">Previsto</option>
+                <option value="aberto">Em aberto</option>
+              </select>
+            </label>
+            <div class="filter-actions">
+              <button id="clearFiltersButton" class="button button-secondary" type="button">
+                Limpar filtros
+              </button>
+            </div>
+          </div>
+          <div id="monthTableSummary" class="table-summary"></div>
           <div id="monthTable" class="table-wrap"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Fechamento</p>
+              <h2>Fechamento do mes</h2>
+            </div>
+          </div>
+          <div id="monthClosingPanel" class="closing-panel"></div>
         </section>
 
         <section class="panel">
