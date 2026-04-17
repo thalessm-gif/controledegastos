@@ -16,8 +16,8 @@
           <p class="eyebrow">Casa de THALES e CÁTIA</p>
           <h1>Controle da Casa</h1>
           <p class="hero-text">
-            Um painel mais pessoal para lançar compras rapidamente, entender o que
-            entra em cada fatura e acompanhar os gastos do mês com clareza.
+            Um painel mais pessoal para lançar compras rapidamente, entender em
+            qual fatura cada gasto vai cair e acompanhar o mês com mais clareza.
           </p>
         </div>
 
@@ -27,7 +27,7 @@
             <input id="selectedMonth" type="month" />
           </label>
           <button id="syncButton" class="button button-secondary" type="button">
-            Sincronizar com Google Sheets
+            Sincronizar dados
           </button>
         </div>
       </header>
@@ -76,6 +76,17 @@
               <label class="field">
                 <span>Categoria</span>
                 <select name="category" id="categorySelect" required></select>
+              </label>
+
+              <label class="field field-full hidden" id="customCategoryField">
+                <span>Outro: descrever categoria</span>
+                <input
+                  name="customCategory"
+                  id="customCategoryInput"
+                  type="text"
+                  maxlength="60"
+                  placeholder="Ex.: presente, manutenção, taxa eventual"
+                />
               </label>
 
               <label class="field">
@@ -170,7 +181,7 @@
           <div class="panel-head">
             <div>
               <p class="panel-kicker">Cartões</p>
-              <h2>Gastos em cartões</h2>
+              <h2>Resumo dos cartões no mês</h2>
             </div>
           </div>
           <div id="cardSummaries" class="stack-list"></div>
@@ -256,9 +267,9 @@
               </label>
 
               <label class="field">
-                <span>Orçamento de quem?</span>
+                <span>Orçamento vinculado a</span>
                 <select name="budgetOwner">
-                  <option value="">Sem responsável</option>
+                  <option value="">Casa toda</option>
                   <option value="thales">THALES</option>
                   <option value="catia">CÁTIA</option>
                 </select>

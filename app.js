@@ -6,17 +6,60 @@ const PEOPLE = [
   { id: "catia", name: "CÁTIA" },
 ];
 const DEFAULT_CATEGORIES = [
-  "Mercado",
-  "Casa",
-  "Contas Fixas",
-  "Transporte",
-  "Saúde",
+  "Água",
+  "Assessoria",
+  "Corridas (Provas/Fotos)",
+  "Banho Babi",
+  "Cabelo/Unha/Sobrancelha",
+  "Celular",
+  "Combustível",
+  "Condomínio",
   "Farmácia",
-  "Lazer",
-  "Restaurante",
-  "Pets",
-  "Educação",
-  "Outros",
+  "Gás",
+  "Internet",
+  "Luz",
+  "Mercado",
+  "Petz",
+  "Uber",
+];
+const OTHER_CATEGORY_VALUE = "__other__";
+const DEFAULT_SEED_UPDATED_AT = "2026-04-17T00:00:00.000Z";
+const DEFAULT_CARDS = [
+  {
+    id: "bb-catia",
+    name: "Banco do Brasil - Cátia",
+    closingDay: 27,
+    paymentDay: 5,
+    updatedAt: DEFAULT_SEED_UPDATED_AT,
+  },
+  {
+    id: "bb-thales",
+    name: "Banco do Brasil - Thales",
+    closingDay: 24,
+    paymentDay: 8,
+    updatedAt: DEFAULT_SEED_UPDATED_AT,
+  },
+  {
+    id: "itau-thales",
+    name: "Itaú - Thales",
+    closingDay: 27,
+    paymentDay: 5,
+    updatedAt: DEFAULT_SEED_UPDATED_AT,
+  },
+  {
+    id: "mercadopago-thales",
+    name: "Mercado Pago - Thales",
+    closingDay: 15,
+    paymentDay: 21,
+    updatedAt: DEFAULT_SEED_UPDATED_AT,
+  },
+  {
+    id: "santander-thales",
+    name: "Santander - Thales",
+    closingDay: 15,
+    paymentDay: 21,
+    updatedAt: DEFAULT_SEED_UPDATED_AT,
+  },
 ];
 const PAYMENT_TYPE_LABELS = {
   pix: "Pix",
@@ -58,6 +101,8 @@ function cacheDom() {
   dom.purchaseForm = document.querySelector("#purchaseForm");
   dom.responsibleSelect = document.querySelector("#responsibleSelect");
   dom.categorySelect = document.querySelector("#categorySelect");
+  dom.customCategoryField = document.querySelector("#customCategoryField");
+  dom.customCategoryInput = document.querySelector("#customCategoryInput");
   dom.paymentTypeSelect = document.querySelector("#paymentTypeSelect");
   dom.cardSelect = document.querySelector("#cardSelect");
   dom.installmentsInput = document.querySelector("#installmentsInput");
@@ -92,6 +137,8 @@ function wireEvents() {
 
   dom.purchaseForm.addEventListener("submit", handlePurchaseSubmit);
   dom.purchaseCancelButton.addEventListener("click", cancelPurchaseEdit);
+  dom.categorySelect.addEventListener("change", renderAll);
+  dom.customCategoryInput.addEventListener("input", renderPurchasePreview);
   dom.paymentTypeSelect.addEventListener("change", renderAll);
   dom.cardSelect.addEventListener("change", renderPurchasePreview);
   dom.installmentsInput.addEventListener("input", renderPurchasePreview);
@@ -125,7 +172,7 @@ function createEmptyState() {
       lastSyncedAt: "",
       lastSyncMessage: "Sincronização ainda não executada.",
     },
-    cards: [],
+    cards: createDefaultCards(),
     purchases: [],
     deletions: {
       cards: [],
@@ -175,8 +222,24 @@ function normalizeState(rawState) {
   normalized.settings.budgetOwner = normalizeBudgetOwner(normalized.settings.budgetOwner);
   normalized.settings.updatedAt = normalized.settings.updatedAt || "";
   normalized.sync.scriptUrl = cleanText(normalized.sync.scriptUrl) || DEFAULT_SCRIPT_URL;
+  normalized.cards = ensureDefaultCards(normalized.cards, normalized.deletions.cards);
 
   return normalized;
+}
+
+function createDefaultCards() {
+  return DEFAULT_CARDS.map((card) => normalizeCard(card)).filter(Boolean);
+}
+
+function ensureDefaultCards(cards, deletions = []) {
+  const deletedIds = new Set(deletions.map((entry) => entry.id));
+  const existingNames = new Set(cards.map((card) => normalizeCardName(card.name)));
+
+  const missingCards = createDefaultCards().filter((card) => {
+    return !deletedIds.has(card.id) && !existingNames.has(normalizeCardName(card.name));
+  });
+
+  return [...cards, ...missingCards];
 }
 
 function normalizeCard(card) {
@@ -255,6 +318,10 @@ function cleanText(value) {
   return String(value || "").trim();
 }
 
+function normalizeCardName(value) {
+  return cleanText(value).toLocaleLowerCase("pt-BR");
+}
+
 function normalizeMoney(value) {
   const parsed = Number.parseFloat(String(value || "").replace(",", "."));
   if (!Number.isFinite(parsed)) {
@@ -280,7 +347,9 @@ function nowIso() {
 }
 
 function getCurrentDate() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function getCurrentMonth() {
@@ -307,7 +376,51 @@ function normalizeBudgetOwner(value) {
 
 function normalizeCategory(value) {
   const category = cleanText(value);
-  return DEFAULT_CATEGORIES.includes(category) ? category : DEFAULT_CATEGORIES[0];
+  if (!category) {
+    return DEFAULT_CATEGORIES[0];
+  }
+  if (DEFAULT_CATEGORIES.includes(category)) {
+    return category;
+  }
+  return buildCustomCategoryLabel(category) || category;
+}
+
+function buildCustomCategoryLabel(value) {
+  const detail = cleanText(value).replace(/^Outro:\s*/i, "");
+  return detail ? `Outro: ${detail}` : "";
+}
+
+function getCurrentCategoryValueFromUi() {
+  const selectedValue = cleanText(dom.categorySelect?.value);
+  if (selectedValue === OTHER_CATEGORY_VALUE) {
+    return buildCustomCategoryLabel(dom.customCategoryInput?.value) || OTHER_CATEGORY_VALUE;
+  }
+  return selectedValue || DEFAULT_CATEGORIES[0];
+}
+
+function getCategoryFieldState(categoryValue) {
+  const category = cleanText(categoryValue);
+  if (!category) {
+    return { selectValue: DEFAULT_CATEGORIES[0], customValue: "" };
+  }
+  if (category === OTHER_CATEGORY_VALUE) {
+    return { selectValue: OTHER_CATEGORY_VALUE, customValue: "" };
+  }
+  if (DEFAULT_CATEGORIES.includes(category)) {
+    return { selectValue: category, customValue: "" };
+  }
+  return {
+    selectValue: OTHER_CATEGORY_VALUE,
+    customValue: category.replace(/^Outro:\s*/i, ""),
+  };
+}
+
+function getCategoryFromForm() {
+  const selectedValue = cleanText(dom.categorySelect.value);
+  if (selectedValue === OTHER_CATEGORY_VALUE) {
+    return buildCustomCategoryLabel(dom.customCategoryInput.value);
+  }
+  return normalizeCategory(selectedValue);
 }
 
 function normalizePaymentType(value) {
@@ -459,6 +572,7 @@ function buildChargeEntries(purchase) {
 
 function buildChargeDetail(purchase, card, chargeMonth, dueDate, installmentIndex) {
   const parts = [PAYMENT_TYPE_LABELS[purchase.paymentType]];
+  parts.push(`compra em ${formatDate(purchase.date)}`);
   if (card) {
     parts.push(card.name);
     parts.push(`vence em ${formatDate(dueDate)}`);
@@ -601,17 +715,18 @@ function renderStatus() {
   const cardCount = state.cards.length;
   dom.statusBadge.textContent =
     cardCount > 0
-      ? `${cardCount} cartão(ões) prontos para THALES e CÁTIA.`
+      ? `${cardCount} cartões cadastrados para THALES e CÁTIA.`
       : "Cadastre os cartões para o crédito calcular a cobrança sozinho.";
 
   const syncParts = [state.sync.lastSyncMessage];
   if (state.sync.lastSyncedAt) {
-    syncParts.push(`Última sync: ${formatDateTime(state.sync.lastSyncedAt)}`);
+    syncParts.push(`Última sincronização: ${formatDateTime(state.sync.lastSyncedAt)}`);
   }
   dom.syncStatus.textContent = syncParts.filter(Boolean).join(" ");
 }
 
 function renderSelectOptions() {
+  const categoryState = getCategoryFieldState(getCurrentCategoryValueFromUi());
   setSelectOptions(
     dom.responsibleSelect,
     PEOPLE.map((person) => ({ value: person.id, label: person.name })),
@@ -619,9 +734,13 @@ function renderSelectOptions() {
   );
   setSelectOptions(
     dom.categorySelect,
-    DEFAULT_CATEGORIES.map((category) => ({ value: category, label: category })),
-    dom.purchaseForm.elements.category.value || DEFAULT_CATEGORIES[0]
+    DEFAULT_CATEGORIES.map((category) => ({ value: category, label: category })).concat({
+      value: OTHER_CATEGORY_VALUE,
+      label: "Outro (digitar)",
+    }),
+    categoryState.selectValue
   );
+  dom.customCategoryInput.value = categoryState.customValue;
   setSelectOptions(
     dom.cardSelect,
     [{ value: "", label: "Não se aplica" }].concat(
@@ -660,12 +779,20 @@ function setSelectOptions(select, options, selectedValue) {
 function renderPurchaseFormState() {
   const editing = Boolean(uiState.purchaseEditId);
   const isCredit = dom.paymentTypeSelect.value === "credito";
+  const isCustomCategory = dom.categorySelect.value === OTHER_CATEGORY_VALUE;
 
   dom.cardSelect.disabled = !isCredit;
   dom.installmentsInput.disabled = !isCredit;
   if (!isCredit) {
     dom.cardSelect.value = "";
     dom.installmentsInput.value = "1";
+  }
+
+  dom.customCategoryField.classList.toggle("hidden", !isCustomCategory);
+  dom.customCategoryInput.disabled = !isCustomCategory;
+  dom.customCategoryInput.required = isCustomCategory;
+  if (!isCustomCategory) {
+    dom.customCategoryInput.value = "";
   }
 
   dom.purchaseSubmitButton.textContent = editing ? "Salvar alterações" : "Salvar gasto";
@@ -675,7 +802,9 @@ function renderPurchaseFormState() {
       ? "Você está editando uma compra já cadastrada."
       : isCredit && !state.cards.length
         ? "Cadastre um cartão antes de lançar compras no crédito."
-        : "Se for no crédito, o sistema calcula sozinho o mês de cobrança.";
+        : isCustomCategory
+          ? "Use Outro para detalhar uma categoria livre sem bagunçar a lista principal."
+          : "Se for no crédito, o sistema calcula sozinho o mês de cobrança.";
 
   dom.cardSubmitButton.textContent = uiState.cardEditId ? "Salvar alterações" : "Salvar cartão";
   dom.cardCancelButton.classList.toggle("hidden", !uiState.cardEditId);
@@ -714,28 +843,34 @@ function renderPurchasePreview() {
   const firstChargeMonth = getFirstChargeMonth(draft);
   const dueDate = getCardDueDate(firstChargeMonth, card);
   const lastChargeMonth = addMonths(firstChargeMonth, draft.installments - 1);
+  const purchaseDay = Number.parseInt(draft.date.slice(8, 10), 10);
+  const billingHint =
+    purchaseDay <= card.closingDay
+      ? `Como a compra foi lançada até o fechamento do dia ${card.closingDay}, ela cai na fatura de ${formatMonthLabel(firstChargeMonth)}.`
+      : `Como a compra passou do fechamento do dia ${card.closingDay}, ela só entra na fatura de ${formatMonthLabel(firstChargeMonth)}.`;
   dom.purchasePreview.innerHTML = `
     <strong>Prévia da cobrança</strong>
-    <p>Primeira cobrança em <strong>${escapeHtml(formatMonthLabel(firstChargeMonth))}</strong>, com vencimento em <strong>${escapeHtml(formatDate(dueDate))}</strong>.</p>
+    <p>${escapeHtml(billingHint)}</p>
+    <p>Primeiro vencimento em <strong>${escapeHtml(formatDate(dueDate))}</strong>.</p>
     <p>${draft.installments > 1 ? `Última parcela em ${escapeHtml(formatMonthLabel(lastChargeMonth))}.` : "Compra à vista no crédito."}</p>
   `;
 }
 
 function renderStats() {
   const summary = getMonthlySummary(state.settings.selectedMonth);
-  const budgetAmount = state.settings.budgetAmount;
-  const budgetLeft = budgetAmount > 0 ? budgetAmount - summary.total : 0;
-  const budgetLabel =
-    budgetAmount > 0
-      ? `Orçamento de ${state.settings.budgetOwner ? getResponsibleName(state.settings.budgetOwner) : "casa"}`
-      : "Sem orçamento";
+  const creditTotal = sum(
+    summary.charges
+      .filter((charge) => charge.paymentType === "credito")
+      .map((charge) => charge.amount)
+  );
+  const creditShare = summary.total > 0 ? Math.round((creditTotal / summary.total) * 100) : 0;
 
   const stats = [
     {
       label: "Total do mês",
       value: formatCurrency(summary.total),
-      support: `${summary.charges.length} cobranças em ${formatMonthLabel(state.settings.selectedMonth)}`,
-      progress: budgetAmount > 0 ? Math.min(100, Math.round((summary.total / budgetAmount) * 100)) : 30,
+      support: `${summary.charges.length} cobrança(s) organizadas em ${formatMonthLabel(state.settings.selectedMonth)}`,
+      progress: summary.total > 0 ? 100 : 0,
     },
     ...summary.byPerson.map((person) => ({
       label: person.name,
@@ -744,13 +879,13 @@ function renderStats() {
       progress: person.share,
     })),
     {
-      label: budgetLabel,
-      value: budgetAmount > 0 ? formatCurrency(budgetAmount) : "Opcional",
+      label: "No crédito",
+      value: formatCurrency(creditTotal),
       support:
-        budgetAmount > 0
-          ? `${budgetLeft >= 0 ? "Sobra" : "Passou"} ${formatCurrency(Math.abs(budgetLeft))}`
-          : "Você pode deixar sem orçamento se preferir",
-      progress: budgetAmount > 0 ? Math.min(100, Math.round((summary.total / budgetAmount) * 100)) : 0,
+        creditTotal > 0
+          ? `${summary.byCard.length} cartão(ões) com cobrança neste mês`
+          : "Nenhuma cobrança no crédito neste mês",
+      progress: creditShare,
     },
   ];
 
@@ -777,7 +912,7 @@ function renderMonthCharges() {
 
   dom.monthSummaryText.textContent =
     filteredCharges.length > 0
-      ? `${filteredCharges.length} cobrança(s) visíveis, somando ${formatCurrency(filteredTotal)}.`
+      ? `${filteredCharges.length} item(ns) cobrados no mês, somando ${formatCurrency(filteredTotal)}.`
       : `Nenhum gasto encontrado para ${formatMonthLabel(state.settings.selectedMonth)} com os filtros atuais.`;
 
   if (!filteredCharges.length) {
@@ -795,9 +930,9 @@ function renderMonthCharges() {
         <tr>
           <th>Categoria</th>
           <th>Responsável</th>
-          <th>Cobrança</th>
+          <th>Detalhe</th>
           <th>Valor</th>
-          <th>Ação</th>
+          <th>Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -826,11 +961,12 @@ function renderMonthCharges() {
 }
 
 function renderCardSummaries() {
-  const cards = getMonthlySummary(state.settings.selectedMonth).byCard;
+  const summary = getMonthlySummary(state.settings.selectedMonth);
+  const cards = summary.byCard;
   if (!cards.length) {
     dom.cardSummaries.innerHTML = `
       <div class="empty-state">
-        <p>Os resumos de cartão aparecem assim que existirem compras no crédito cobradas no mês.</p>
+        <p>Os resumos dos cartões aparecem assim que existirem compras no crédito cobradas no mês.</p>
       </div>
     `;
     return;
@@ -843,13 +979,13 @@ function renderCardSummaries() {
           <div class="card-summary-head">
             <div>
               <strong>${escapeHtml(card.name)}</strong>
-              <span class="muted-line">Fechamento dia ${escapeHtml(String(card.closingDay))} • pagamento dia ${escapeHtml(String(card.paymentDay))}</span>
+              <span class="muted-line">Fecha dia ${escapeHtml(String(card.closingDay))} • vence dia ${escapeHtml(String(card.paymentDay))}</span>
             </div>
             <span class="tag tag-neutral">${escapeHtml(formatCurrency(card.total))}</span>
           </div>
           <div class="mini-stat-grid">
             <div class="mini-stat">
-              <span>Cobranças</span>
+              <span>Itens do mês</span>
               <strong>${escapeHtml(String(card.count))}</strong>
             </div>
             <div class="mini-stat">
@@ -857,8 +993,8 @@ function renderCardSummaries() {
               <strong>${escapeHtml(formatDate(card.dueDate))}</strong>
             </div>
             <div class="mini-stat">
-              <span>Mês</span>
-              <strong>${escapeHtml(formatMonthLabel(state.settings.selectedMonth))}</strong>
+              <span>Participação</span>
+              <strong>${escapeHtml(`${summary.total > 0 ? Math.round((card.total / summary.total) * 100) : 0}%`)}</strong>
             </div>
           </div>
         </article>
@@ -886,7 +1022,7 @@ function renderCardList() {
           <div class="card-row-head">
             <div>
               <strong>${escapeHtml(card.name)}</strong>
-              <span class="muted-line">Fechamento dia ${escapeHtml(String(card.closingDay))} • pagamento dia ${escapeHtml(String(card.paymentDay))}</span>
+              <span class="muted-line">Fecha dia ${escapeHtml(String(card.closingDay))} • vence dia ${escapeHtml(String(card.paymentDay))}</span>
             </div>
             <span class="tag tag-neutral">${escapeHtml(String(getCardUsageCount(card.id)))} compra(s)</span>
           </div>
@@ -945,12 +1081,13 @@ function renderInstallmentOverview() {
 function renderBudget() {
   const amount = state.settings.budgetAmount;
   const owner = state.settings.budgetOwner;
-  const monthTotal = getMonthlySummary(state.settings.selectedMonth).total;
+  const summary = getMonthlySummary(state.settings.selectedMonth);
+  const monthTotal = getBudgetTrackedTotal(summary, owner);
 
   if (!amount) {
     dom.budgetSummary.innerHTML = `
       <strong>Sem orçamento definido</strong>
-      <p>Se quiser, você pode colocar um valor e escolher se o orçamento é de THALES, de CÁTIA ou apenas da casa.</p>
+      <p>Se quiser, você pode colocar um valor e vincular a THALES, à CÁTIA ou ao total da casa.</p>
     `;
     return;
   }
@@ -959,17 +1096,26 @@ function renderBudget() {
   dom.budgetSummary.innerHTML = `
     <strong>${escapeHtml(owner ? `Orçamento de ${getResponsibleName(owner)}` : "Orçamento da casa")}</strong>
     <p>Valor configurado: ${escapeHtml(formatCurrency(amount))}</p>
+    <p>Gasto acompanhado: ${escapeHtml(formatCurrency(monthTotal))}</p>
     <p>${escapeHtml(difference >= 0 ? "Sobra atual" : "Excedente atual")}: ${escapeHtml(formatCurrency(Math.abs(difference)))}</p>
   `;
 }
 
+function getBudgetTrackedTotal(summary, owner) {
+  if (!owner) {
+    return summary.total;
+  }
+  return summary.byPerson.find((person) => person.id === owner)?.total || 0;
+}
+
 function getPurchaseDraftFromForm() {
+  const category = getCategoryFromForm();
   return normalizePurchase({
     id: cleanText(dom.purchaseForm.elements.entryId.value) || createId("draft"),
     responsible: dom.purchaseForm.elements.responsible.value || "thales",
     date: dom.purchaseForm.elements.date.value || getCurrentDate(),
     amount: dom.purchaseForm.elements.amount.value,
-    category: dom.purchaseForm.elements.category.value || DEFAULT_CATEGORIES[0],
+    category: category || DEFAULT_CATEGORIES[0],
     paymentType: dom.paymentTypeSelect.value || "pix",
     cardId: dom.cardSelect.value,
     installments: dom.installmentsInput.value || 1,
@@ -979,7 +1125,7 @@ function getPurchaseDraftFromForm() {
     responsible: "thales",
     date: getCurrentDate(),
     amount: 0,
-    category: DEFAULT_CATEGORIES[0],
+    category: category || DEFAULT_CATEGORIES[0],
     paymentType: dom.paymentTypeSelect.value || "pix",
     cardId: dom.cardSelect.value,
     installments: clampInteger(dom.installmentsInput.value, 1, 48, 1),
@@ -1016,8 +1162,15 @@ function handlePurchaseSubmit(event) {
   const form = new FormData(dom.purchaseForm);
   const paymentType = form.get("paymentType");
   const cardId = cleanText(form.get("cardId"));
+  const category = getCategoryFromForm();
   const installments =
     paymentType === "credito" ? clampInteger(form.get("installments"), 1, 48, 1) : 1;
+
+  if (dom.categorySelect.value === OTHER_CATEGORY_VALUE && !category) {
+    setSyncMessage("Descreva a categoria quando escolher Outro.", false);
+    renderStatus();
+    return;
+  }
 
   if (paymentType === "credito" && !cardId) {
     setSyncMessage("Selecione um cartão para compras no crédito.", false);
@@ -1030,7 +1183,7 @@ function handlePurchaseSubmit(event) {
     responsible: form.get("responsible"),
     date: form.get("date"),
     amount: form.get("amount"),
-    category: form.get("category"),
+    category,
     paymentType,
     cardId,
     installments,
@@ -1096,7 +1249,9 @@ function startPurchaseEdit(purchaseId) {
   dom.purchaseForm.elements.responsible.value = purchase.responsible;
   dom.purchaseForm.elements.date.value = purchase.date;
   dom.purchaseForm.elements.amount.value = purchase.amount;
-  dom.purchaseForm.elements.category.value = purchase.category;
+  const categoryState = getCategoryFieldState(purchase.category);
+  dom.categorySelect.value = categoryState.selectValue;
+  dom.customCategoryInput.value = categoryState.customValue;
   dom.paymentTypeSelect.value = purchase.paymentType;
   dom.cardSelect.value = purchase.cardId || "";
   dom.installmentsInput.value = purchase.installments;
@@ -1110,7 +1265,8 @@ function cancelPurchaseEdit(options = {}) {
   dom.purchaseForm.elements.entryId.value = "";
   dom.purchaseForm.elements.responsible.value = "thales";
   dom.purchaseForm.elements.date.value = getCurrentDate();
-  dom.purchaseForm.elements.category.value = DEFAULT_CATEGORIES[0];
+  dom.categorySelect.value = DEFAULT_CATEGORIES[0];
+  dom.customCategoryInput.value = "";
   dom.paymentTypeSelect.value = "pix";
   dom.cardSelect.value = "";
   dom.installmentsInput.value = "1";
@@ -1213,7 +1369,7 @@ function handleBudgetSubmit(event) {
 
   const form = new FormData(dom.budgetForm);
   state.settings.budgetAmount = normalizeMoney(form.get("budgetAmount"));
-  state.settings.budgetOwner = cleanText(form.get("budgetOwner"));
+  state.settings.budgetOwner = normalizeBudgetOwner(form.get("budgetOwner"));
   state.settings.updatedAt = nowIso();
   setSyncMessage("Orçamento salvo no painel local.", false);
   persistState();
