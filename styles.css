@@ -87,8 +87,16 @@ body {
 }
 
 .hero-compact {
-  grid-template-columns: minmax(0, 1.8fr) auto;
-  padding: 1.2rem 1.3rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 1.15rem 1.2rem;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-width: 0;
 }
 
 .eyebrow,
@@ -132,29 +140,15 @@ body {
 }
 
 .hero-actions-compact {
-  align-self: start;
-  justify-content: flex-start;
-  width: min(100%, 13rem);
-  padding: 0.8rem 0.9rem;
-}
-
-.status-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.8rem;
-  margin-top: 1rem;
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 48px;
-  padding: 0.8rem 1rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: var(--muted);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+  justify-self: center;
+  align-self: center;
+  gap: 0;
+  justify-content: center;
+  width: min(100%, 10.25rem);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .stats-grid {
@@ -311,12 +305,22 @@ select:focus {
 }
 
 .field-inline-compact {
-  width: min(100%, 11rem);
+  width: 100%;
 }
 
 .field-inline-compact input {
-  min-height: 42px;
-  padding: 0.7rem 0.8rem;
+  min-height: 40px;
+  padding: 0.62rem 0.72rem;
+  width: 100%;
+  text-align: center;
+}
+
+.field-inline-centered {
+  align-items: center;
+}
+
+.field-inline-centered span {
+  text-align: center;
 }
 
 .sync-note {
@@ -333,15 +337,24 @@ select:focus {
   gap: 0.65rem;
 }
 
+.page-links-inline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  width: min(100%, 22rem);
+}
+
 .link-chip,
 .text-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  padding: 0.65rem 0.95rem;
+  min-height: 38px;
+  padding: 0.58rem 0.75rem;
   border-radius: 999px;
   color: var(--text);
+  white-space: nowrap;
+  font-size: 0.94rem;
   text-decoration: none;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.05);
@@ -370,7 +383,7 @@ select:focus {
 }
 
 .field-short {
-  width: min(100%, 12rem);
+  width: min(100%, 10rem);
   justify-self: start;
 }
 
@@ -583,6 +596,45 @@ td strong {
   display: none;
 }
 
+.toast-viewport {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  z-index: 20;
+  width: min(calc(100% - 1.5rem), 22rem);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.toast {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.98);
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 24, 36, 0.96);
+  color: var(--text);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.toast-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.toast-success {
+  border-color: rgba(31, 183, 166, 0.32);
+}
+
+.toast-info {
+  border-color: rgba(255, 154, 98, 0.28);
+}
+
+.toast-error {
+  border-color: rgba(242, 107, 95, 0.32);
+}
+
 button[disabled],
 input[disabled],
 select[disabled] {
@@ -626,7 +678,6 @@ select[disabled] {
     display: flex;
     flex-direction: column;
   }
-
 }
 
 @media (max-width: 720px) {
@@ -641,6 +692,13 @@ select[disabled] {
     border-radius: 22px;
   }
 
+  .hero-compact {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+    justify-items: center;
+    text-align: center;
+  }
+
   .stats-grid,
   .form-grid,
   .form-grid-compact,
@@ -649,8 +707,51 @@ select[disabled] {
     grid-template-columns: 1fr;
   }
 
+  .page-links-inline,
   .panel-links,
   .page-links {
     width: 100%;
+  }
+
+  .hero-copy {
+    width: 100%;
+    align-items: center;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 10vw, 2.6rem);
+  }
+
+  .page-links-inline {
+    max-width: 22rem;
+    margin-inline: auto;
+  }
+
+  .page-links-inline .link-chip {
+    min-height: 36px;
+    padding: 0.52rem 0.4rem;
+    font-size: 0.84rem;
+  }
+
+  .hero-actions-compact {
+    width: min(100%, 9.75rem);
+    margin-inline: auto;
+  }
+
+  .launch-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .launch-grid .field-full {
+    grid-column: 1 / -1;
+  }
+
+  .field-short {
+    width: 100%;
+  }
+
+  .field-inline-compact input {
+    min-height: 38px;
+    font-size: 0.95rem;
   }
 }

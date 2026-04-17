@@ -74,6 +74,8 @@ let state = null;
 let autoSyncTimer = 0;
 let syncInFlight = false;
 let syncQueued = false;
+let currentToastId = 0;
+let toastCloseTimer = 0;
 const uiState = {
   purchaseEditId: "",
   cardEditId: "",
@@ -109,6 +111,7 @@ function cacheDom() {
   dom.selectedMonth = document.querySelector("#selectedMonth");
   dom.statusBadge = document.querySelector("#statusBadge");
   dom.syncStatus = document.querySelector("#syncStatus");
+  dom.toastViewport = document.querySelector("#toastViewport");
   dom.statsGrid = document.querySelector("#statsGrid");
 
   dom.purchaseForm = document.querySelector("#purchaseForm");
@@ -1346,9 +1349,11 @@ function handlePurchaseSubmit(event) {
   if (uiState.purchaseEditId) {
     state.purchases = state.purchases.map((item) => (item.id === purchase.id ? purchase : item));
     setSyncMessage("Gasto atualizado no painel local.", false);
+    showToast("Lançamento atualizado.", { tone: "success", duration: 1600 });
   } else {
     state.purchases.unshift(purchase);
     setSyncMessage("Gasto salvo no painel local.", false);
+    showToast("Lançamento cadastrado.", { tone: "success", duration: 1600 });
   }
 
   cancelPurchaseEdit({ silent: true });
@@ -1540,6 +1545,61 @@ function setSyncMessage(message, markSynced) {
   }
 }
 
+function showToast(message, options = {}) {
+  if (!dom.toastViewport) {
+    return 0;
+  }
+
+  const tone = options.tone || "info";
+  const sticky = Boolean(options.sticky);
+  const duration = options.duration ?? 2200;
+  const toastId = options.toastId || currentToastId + 1;
+
+  currentToastId = toastId;
+  window.clearTimeout(toastCloseTimer);
+
+  dom.toastViewport.innerHTML = `
+    <div class="toast toast-${escapeHtml(tone)}" data-toast-id="${escapeHtml(String(toastId))}">
+      ${escapeHtml(message)}
+    </div>
+  `;
+
+  const toast = dom.toastViewport.firstElementChild;
+  if (toast) {
+    window.requestAnimationFrame(() => {
+      toast.classList.add("toast-visible");
+    });
+  }
+
+  if (!sticky) {
+    toastCloseTimer = window.setTimeout(() => {
+      closeToast(toastId);
+    }, duration);
+  }
+
+  return toastId;
+}
+
+function closeToast(toastId = currentToastId) {
+  if (!dom.toastViewport || toastId !== currentToastId) {
+    return;
+  }
+
+  const toast = dom.toastViewport.firstElementChild;
+  if (!toast) {
+    return;
+  }
+
+  toast.classList.remove("toast-visible");
+  window.clearTimeout(toastCloseTimer);
+  toastCloseTimer = window.setTimeout(() => {
+    if (toastId !== currentToastId) {
+      return;
+    }
+    dom.toastViewport.innerHTML = "";
+  }, 220);
+}
+
 function handleMoneyInput(event) {
   event.target.value = formatDigitsAsMoney(event.target.value);
   if (event.target === dom.purchaseAmountInput) {
@@ -1570,6 +1630,7 @@ async function syncWithGoogle(options = {}) {
   }
 
   syncInFlight = true;
+  const syncToastId = showToast("Sincronizando...", { tone: "info", sticky: true });
   try {
     setSyncMessage(
       options.automated
@@ -1589,6 +1650,11 @@ async function syncWithGoogle(options = {}) {
         : "Sincronização concluída com sucesso.",
       true
     );
+    showToast("Sincronizado.", {
+      toastId: syncToastId,
+      tone: "success",
+      duration: 1200,
+    });
     persistState();
   } catch (error) {
     console.error(error);
@@ -1596,6 +1662,11 @@ async function syncWithGoogle(options = {}) {
       "Falha na sincronização. Atualize o Apps Script com a versão nova antes de tentar de novo.",
       false
     );
+    showToast("Falha ao sincronizar.", {
+      toastId: syncToastId,
+      tone: "error",
+      duration: 2200,
+    });
     renderStatus();
   } finally {
     syncInFlight = false;

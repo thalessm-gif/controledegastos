@@ -15,7 +15,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Casa de THALES e CÁTIA</p>
           <h1>Controle da Casa</h1>
-          <div class="page-links">
+          <div class="page-links page-links-inline">
             <a class="link-chip link-chip-current" href="index.html">Lançamentos</a>
             <a class="link-chip" href="cartoes.html">Cartões</a>
             <a class="link-chip" href="orcamento.html">Orçamento</a>
@@ -23,18 +23,12 @@
         </div>
 
         <div class="hero-actions hero-actions-compact">
-          <label class="field-inline field-inline-compact">
+          <label class="field-inline field-inline-compact field-inline-centered">
             <span>Mês em foco</span>
             <input id="selectedMonth" type="month" />
           </label>
-          <p class="sync-note">Sincroniza sozinho ao abrir e ao salvar.</p>
         </div>
       </header>
-
-      <section class="status-strip">
-        <div class="status-pill" id="statusBadge">Carregando painel...</div>
-        <div class="status-pill" id="syncStatus">Sincronização ainda não executada.</div>
-      </section>
 
       <section class="workspace-grid">
         <section class="panel panel-wide">
@@ -42,10 +36,6 @@
             <div>
               <p class="panel-kicker">Lançamento rápido</p>
               <h2>Novo gasto</h2>
-            </div>
-            <div class="panel-links">
-              <a class="text-link" href="cartoes.html">Cadastrar cartões</a>
-              <a class="text-link" href="orcamento.html">Abrir orçamento</a>
             </div>
           </div>
 
@@ -194,6 +184,8 @@
         </section>
       </section>
     </main>
+
+    <div id="toastViewport" class="toast-viewport" aria-live="polite" aria-atomic="true"></div>
 
     <script src="app.js"></script>
   </body>

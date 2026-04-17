@@ -15,24 +15,13 @@
         <div class="hero-copy">
           <p class="eyebrow">Casa de THALES e CÁTIA</p>
           <h1>Cartões</h1>
-          <div class="page-links">
+          <div class="page-links page-links-inline">
             <a class="link-chip" href="index.html">Lançamentos</a>
             <a class="link-chip link-chip-current" href="cartoes.html">Cartões</a>
             <a class="link-chip" href="orcamento.html">Orçamento</a>
           </div>
         </div>
-
-        <div class="hero-actions hero-actions-compact">
-          <p class="sync-note">
-            Cadastre os cartões com fechamento e vencimento para o app jogar cada compra no mês certo.
-          </p>
-        </div>
       </header>
-
-      <section class="status-strip">
-        <div class="status-pill" id="statusBadge">Carregando painel...</div>
-        <div class="status-pill" id="syncStatus">Sincronização ainda não executada.</div>
-      </section>
 
       <section class="workspace-grid">
         <section class="panel">
@@ -91,6 +80,8 @@
         </section>
       </section>
     </main>
+
+    <div id="toastViewport" class="toast-viewport" aria-live="polite" aria-atomic="true"></div>
 
     <script src="app.js"></script>
   </body>
