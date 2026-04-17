@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orçamento da Casa</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-orb background-orb-left"></div>
+    <div class="background-orb background-orb-right"></div>
+
+    <main class="page-shell">
+      <header class="hero hero-compact">
+        <div class="hero-copy">
+          <p class="eyebrow">Casa de THALES e CÁTIA</p>
+          <h1>Orçamento</h1>
+          <div class="page-links">
+            <a class="link-chip" href="index.html">Lançamentos</a>
+            <a class="link-chip" href="cartoes.html">Cartões</a>
+            <a class="link-chip link-chip-current" href="orcamento.html">Orçamento</a>
+          </div>
+        </div>
+
+        <div class="hero-actions hero-actions-compact">
+          <p class="sync-note">
+            O orçamento acompanha automaticamente os gastos do mês atual da casa, de THALES ou de CÁTIA.
+          </p>
+        </div>
+      </header>
+
+      <section class="status-strip">
+        <div class="status-pill" id="statusBadge">Carregando painel...</div>
+        <div class="status-pill" id="syncStatus">Sincronização ainda não executada.</div>
+      </section>
+
+      <section class="workspace-grid">
+        <section class="panel panel-wide">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Configuração</p>
+              <h2>Orçamento do mês</h2>
+            </div>
+          </div>
+
+          <form id="budgetForm" class="entry-form compact-form">
+            <div class="form-grid form-grid-compact">
+              <label class="field field-short">
+                <span>Valor do orçamento</span>
+                <input
+                  name="budgetAmount"
+                  id="budgetAmountInput"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="off"
+                  placeholder="0,00"
+                />
+              </label>
+
+              <label class="field">
+                <span>Orçamento vinculado a</span>
+                <select name="budgetOwner">
+                  <option value="">Casa toda</option>
+                  <option value="thales">THALES</option>
+                  <option value="catia">CÁTIA</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="form-actions split-actions">
+              <span class="form-hint">
+                Se quiser, pode deixar sem orçamento e continuar usando só os lançamentos.
+              </span>
+              <button id="clearBudgetButton" class="button button-secondary" type="button">
+                Limpar orçamento
+              </button>
+              <button class="button" type="submit">Salvar orçamento</button>
+            </div>
+          </form>
+
+          <div id="budgetSummary" class="info-card"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

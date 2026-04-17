@@ -11,25 +11,23 @@
     <div class="background-orb background-orb-right"></div>
 
     <main class="page-shell">
-      <header class="hero">
+      <header class="hero hero-compact">
         <div class="hero-copy">
           <p class="eyebrow">Casa de THALES e CÁTIA</p>
           <h1>Controle da Casa</h1>
-          <p class="hero-text">
-            Lançamento rápido para o dia a dia, com cobrança automática no mês
-            certo de cada cartão e visão clara do que está pesando na casa.
-          </p>
+          <div class="page-links">
+            <a class="link-chip link-chip-current" href="index.html">Lançamentos</a>
+            <a class="link-chip" href="cartoes.html">Cartões</a>
+            <a class="link-chip" href="orcamento.html">Orçamento</a>
+          </div>
         </div>
 
-        <div class="hero-actions">
-          <label class="field-inline">
+        <div class="hero-actions hero-actions-compact">
+          <label class="field-inline field-inline-compact">
             <span>Mês em foco</span>
             <input id="selectedMonth" type="month" />
           </label>
-          <p class="sync-note">
-            A página sincroniza sozinha ao abrir e também depois de cada
-            lançamento salvo.
-          </p>
+          <p class="sync-note">Sincroniza sozinho ao abrir e ao salvar.</p>
         </div>
       </header>
 
@@ -45,17 +43,21 @@
               <p class="panel-kicker">Lançamento rápido</p>
               <h2>Novo gasto</h2>
             </div>
+            <div class="panel-links">
+              <a class="text-link" href="cartoes.html">Cadastrar cartões</a>
+              <a class="text-link" href="orcamento.html">Abrir orçamento</a>
+            </div>
           </div>
 
           <form id="purchaseForm" class="entry-form">
             <input name="entryId" type="hidden" />
-            <div class="form-grid">
+            <div class="form-grid launch-grid">
               <label class="field">
                 <span>Responsável</span>
                 <select name="responsible" id="responsibleSelect" required></select>
               </label>
 
-              <label class="field">
+              <label class="field field-short">
                 <span>Data</span>
                 <input name="date" type="date" required />
               </label>
@@ -107,7 +109,7 @@
                 </select>
               </label>
 
-              <label class="field">
+              <label class="field field-short">
                 <span>Nº de parcelas</span>
                 <input
                   name="installments"
@@ -146,99 +148,6 @@
 
           <div id="purchasePreview" class="preview-card"></div>
         </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">Cadastro</p>
-              <h2>Cartões cadastrados</h2>
-            </div>
-          </div>
-
-          <form id="cardForm" class="entry-form compact-form">
-            <input name="entryId" type="hidden" />
-            <div class="form-grid form-grid-compact">
-              <label class="field field-full">
-                <span>Nome do cartão</span>
-                <input name="name" type="text" maxlength="50" required />
-              </label>
-
-              <label class="field">
-                <span>Fechamento da fatura</span>
-                <input name="closingDay" type="number" min="1" max="31" step="1" required />
-              </label>
-
-              <label class="field">
-                <span>Pagamento da fatura</span>
-                <input name="paymentDay" type="number" min="1" max="31" step="1" required />
-              </label>
-            </div>
-
-            <div class="form-actions split-actions">
-              <span id="cardFormHint" class="form-hint">
-                O fechamento define em qual mês cada compra entra.
-              </span>
-              <button
-                id="cardCancelButton"
-                class="button button-secondary hidden"
-                type="button"
-              >
-                Cancelar edição
-              </button>
-              <button id="cardSubmitButton" class="button" type="submit">
-                Salvar cartão
-              </button>
-            </div>
-          </form>
-
-          <div id="cardList" class="stack-list"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">Opcional</p>
-              <h2>Orçamento</h2>
-            </div>
-          </div>
-
-          <form id="budgetForm" class="entry-form compact-form">
-            <div class="form-grid form-grid-compact">
-              <label class="field">
-                <span>Valor do orçamento</span>
-                <input
-                  name="budgetAmount"
-                  id="budgetAmountInput"
-                  type="text"
-                  inputmode="numeric"
-                  autocomplete="off"
-                  placeholder="0,00"
-                />
-              </label>
-
-              <label class="field">
-                <span>Orçamento vinculado a</span>
-                <select name="budgetOwner">
-                  <option value="">Casa toda</option>
-                  <option value="thales">THALES</option>
-                  <option value="catia">CÁTIA</option>
-                </select>
-              </label>
-            </div>
-
-            <div class="form-actions split-actions">
-              <span class="form-hint">
-                O orçamento é opcional. Se estiver vazio, o painel mostra só os gastos.
-              </span>
-              <button id="clearBudgetButton" class="button button-secondary" type="button">
-                Limpar orçamento
-              </button>
-              <button class="button" type="submit">Salvar orçamento</button>
-            </div>
-          </form>
-
-          <div id="budgetSummary" class="info-card"></div>
-        </section>
       </section>
 
       <section class="stats-grid" id="statsGrid"></section>
@@ -275,16 +184,6 @@
         </section>
 
         <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-kicker">Cartões</p>
-              <h2>Resumo dos cartões no mês</h2>
-            </div>
-          </div>
-          <div id="cardSummaries" class="stack-list"></div>
-        </section>
-
-        <section class="panel panel-wide">
           <div class="panel-head">
             <div>
               <p class="panel-kicker">Parcelados</p>

@@ -86,6 +86,11 @@ body {
   box-shadow: var(--shadow);
 }
 
+.hero-compact {
+  grid-template-columns: minmax(0, 1.8fr) auto;
+  padding: 1.2rem 1.3rem;
+}
+
 .eyebrow,
 .panel-kicker {
   margin: 0 0 0.5rem;
@@ -124,6 +129,13 @@ body {
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hero-actions-compact {
+  align-self: start;
+  justify-content: flex-start;
+  width: min(100%, 13rem);
+  padding: 0.8rem 0.9rem;
 }
 
 .status-strip {
@@ -298,10 +310,74 @@ select:focus {
   gap: 0.45rem;
 }
 
+.field-inline-compact {
+  width: min(100%, 11rem);
+}
+
+.field-inline-compact input {
+  min-height: 42px;
+  padding: 0.7rem 0.8rem;
+}
+
 .sync-note {
   margin: 0;
   color: var(--muted);
-  line-height: 1.6;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.page-links,
+.panel-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.link-chip,
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0.65rem 0.95rem;
+  border-radius: 999px;
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
+}
+
+.link-chip:hover,
+.link-chip:focus-visible,
+.text-link:hover,
+.text-link:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  outline: none;
+}
+
+.link-chip-current {
+  color: #041218;
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--primary), #56d8ca);
+}
+
+.text-link {
+  min-height: 36px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.92rem;
+}
+
+.field-short {
+  width: min(100%, 12rem);
+  justify-self: start;
+}
+
+.field-short input,
+.field-short select {
+  min-height: 42px;
+  padding: 0.7rem 0.8rem;
 }
 
 .button {
@@ -550,6 +626,7 @@ select[disabled] {
     display: flex;
     flex-direction: column;
   }
+
 }
 
 @media (max-width: 720px) {
@@ -570,5 +647,10 @@ select[disabled] {
   .mini-filters,
   .mini-stat-grid {
     grid-template-columns: 1fr;
+  }
+
+  .panel-links,
+  .page-links {
+    width: 100%;
   }
 }

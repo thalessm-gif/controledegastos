@@ -92,9 +92,17 @@ function init() {
   state = loadState();
   state.settings.selectedMonth = getCurrentMonth();
   wireEvents();
-  dom.purchaseForm.elements.date.value = getCurrentDate();
+  if (dom.purchaseForm?.elements?.date) {
+    dom.purchaseForm.elements.date.value = getCurrentDate();
+  }
   renderAll();
   scheduleAutoSync("init");
+}
+
+function bindEvent(element, eventName, handler) {
+  if (element) {
+    element.addEventListener(eventName, handler);
+  }
 }
 
 function cacheDom() {
@@ -139,30 +147,30 @@ function cacheDom() {
 }
 
 function wireEvents() {
-  dom.selectedMonth.addEventListener("change", handleMonthChange);
+  bindEvent(dom.selectedMonth, "change", handleMonthChange);
 
-  dom.purchaseForm.addEventListener("submit", handlePurchaseSubmit);
-  dom.purchaseCancelButton.addEventListener("click", cancelPurchaseEdit);
-  dom.categorySelect.addEventListener("change", renderAll);
-  dom.customCategoryInput.addEventListener("input", renderPurchasePreview);
-  dom.paymentTypeSelect.addEventListener("change", renderAll);
-  dom.cardSelect.addEventListener("change", renderPurchasePreview);
-  dom.installmentsInput.addEventListener("input", renderPurchasePreview);
-  dom.purchaseForm.elements.date.addEventListener("change", renderPurchasePreview);
-  dom.purchaseAmountInput.addEventListener("input", handleMoneyInput);
+  bindEvent(dom.purchaseForm, "submit", handlePurchaseSubmit);
+  bindEvent(dom.purchaseCancelButton, "click", cancelPurchaseEdit);
+  bindEvent(dom.categorySelect, "change", renderAll);
+  bindEvent(dom.customCategoryInput, "input", renderPurchasePreview);
+  bindEvent(dom.paymentTypeSelect, "change", renderAll);
+  bindEvent(dom.cardSelect, "change", renderPurchasePreview);
+  bindEvent(dom.installmentsInput, "input", renderPurchasePreview);
+  bindEvent(dom.purchaseForm?.elements?.date, "change", renderPurchasePreview);
+  bindEvent(dom.purchaseAmountInput, "input", handleMoneyInput);
 
-  dom.summaryResponsibleFilter.addEventListener("change", handleFilterChange);
-  dom.summaryCardFilter.addEventListener("change", handleFilterChange);
-  dom.clearSummaryFilters.addEventListener("click", clearSummaryFilters);
-  dom.monthCharges.addEventListener("click", handleMonthChargesClick);
+  bindEvent(dom.summaryResponsibleFilter, "change", handleFilterChange);
+  bindEvent(dom.summaryCardFilter, "change", handleFilterChange);
+  bindEvent(dom.clearSummaryFilters, "click", clearSummaryFilters);
+  bindEvent(dom.monthCharges, "click", handleMonthChargesClick);
 
-  dom.cardForm.addEventListener("submit", handleCardSubmit);
-  dom.cardCancelButton.addEventListener("click", cancelCardEdit);
-  dom.cardList.addEventListener("click", handleCardListClick);
+  bindEvent(dom.cardForm, "submit", handleCardSubmit);
+  bindEvent(dom.cardCancelButton, "click", cancelCardEdit);
+  bindEvent(dom.cardList, "click", handleCardListClick);
 
-  dom.budgetForm.addEventListener("submit", handleBudgetSubmit);
-  dom.clearBudgetButton.addEventListener("click", clearBudget);
-  dom.budgetAmountInput.addEventListener("input", handleMoneyInput);
+  bindEvent(dom.budgetForm, "submit", handleBudgetSubmit);
+  bindEvent(dom.clearBudgetButton, "click", clearBudget);
+  bindEvent(dom.budgetAmountInput, "input", handleMoneyInput);
   window.addEventListener("focus", handleWindowFocus);
 }
 
@@ -448,6 +456,9 @@ function buildCustomCategoryLabel(value) {
 }
 
 function getCurrentCategoryValueFromUi() {
+  if (!dom.categorySelect) {
+    return DEFAULT_CATEGORIES[0];
+  }
   const selectedValue = cleanText(dom.categorySelect?.value);
   if (selectedValue === OTHER_CATEGORY_VALUE) {
     return buildCustomCategoryLabel(dom.customCategoryInput?.value) || OTHER_CATEGORY_VALUE;
@@ -473,6 +484,9 @@ function getCategoryFieldState(categoryValue) {
 }
 
 function getCategoryFromForm() {
+  if (!dom.categorySelect) {
+    return DEFAULT_CATEGORIES[0];
+  }
   const selectedValue = cleanText(dom.categorySelect.value);
   if (selectedValue === OTHER_CATEGORY_VALUE) {
     return buildCustomCategoryLabel(dom.customCategoryInput.value);
@@ -765,10 +779,16 @@ function renderAll() {
 }
 
 function renderHeader() {
+  if (!dom.selectedMonth) {
+    return;
+  }
   dom.selectedMonth.value = state.settings.selectedMonth;
 }
 
 function renderStatus() {
+  if (!dom.statusBadge || !dom.syncStatus) {
+    return;
+  }
   const cardCount = state.cards.length;
   dom.statusBadge.textContent =
     cardCount > 0
@@ -783,6 +803,34 @@ function renderStatus() {
 }
 
 function renderSelectOptions() {
+  if (!(dom.purchaseForm && dom.responsibleSelect && dom.categorySelect && dom.cardSelect)) {
+    if (dom.summaryResponsibleFilter) {
+      setSelectOptions(
+        dom.summaryResponsibleFilter,
+        [{ value: "all", label: "Todos" }].concat(
+          PEOPLE.map((person) => ({ value: person.id, label: person.name }))
+        ),
+        uiState.filters.responsible
+      );
+    }
+
+    if (dom.summaryCardFilter) {
+      setSelectOptions(
+        dom.summaryCardFilter,
+        [{ value: "all", label: "Todos" }, { value: "__sem_cartao__", label: "Sem cartão" }].concat(
+          state.cards.map((card) => ({ value: card.id, label: card.name }))
+        ),
+        uiState.filters.cardId
+      );
+    }
+
+    if (dom.budgetForm) {
+      dom.budgetForm.elements.budgetAmount.value = formatMoneyInputValue(state.settings.budgetAmount);
+      dom.budgetForm.elements.budgetOwner.value = state.settings.budgetOwner || "";
+    }
+    return;
+  }
+
   const categoryState = getCategoryFieldState(getCurrentCategoryValueFromUi());
   setSelectOptions(
     dom.responsibleSelect,
@@ -820,11 +868,16 @@ function renderSelectOptions() {
     uiState.filters.cardId
   );
 
-  dom.budgetForm.elements.budgetAmount.value = formatMoneyInputValue(state.settings.budgetAmount);
-  dom.budgetForm.elements.budgetOwner.value = state.settings.budgetOwner || "";
+  if (dom.budgetForm) {
+    dom.budgetForm.elements.budgetAmount.value = formatMoneyInputValue(state.settings.budgetAmount);
+    dom.budgetForm.elements.budgetOwner.value = state.settings.budgetOwner || "";
+  }
 }
 
 function setSelectOptions(select, options, selectedValue) {
+  if (!select) {
+    return;
+  }
   select.innerHTML = options
     .map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`)
     .join("");
@@ -834,6 +887,18 @@ function setSelectOptions(select, options, selectedValue) {
 }
 
 function renderPurchaseFormState() {
+  if (
+    !dom.purchaseForm ||
+    !dom.categorySelect ||
+    !dom.paymentTypeSelect ||
+    !dom.cardSelect ||
+    !dom.installmentsInput ||
+    !dom.purchaseSubmitButton ||
+    !dom.purchaseCancelButton ||
+    !dom.purchaseFormHint
+  ) {
+    return;
+  }
   const editing = Boolean(uiState.purchaseEditId);
   const isCredit = dom.paymentTypeSelect.value === "credito";
   const isCustomCategory = dom.categorySelect.value === OTHER_CATEGORY_VALUE;
@@ -863,14 +928,19 @@ function renderPurchaseFormState() {
           ? "Use Outro para detalhar uma categoria livre sem bagunçar a lista principal."
           : "Se for no crédito, o sistema calcula sozinho o mês de cobrança.";
 
-  dom.cardSubmitButton.textContent = uiState.cardEditId ? "Salvar alterações" : "Salvar cartão";
-  dom.cardCancelButton.classList.toggle("hidden", !uiState.cardEditId);
-  dom.cardFormHint.textContent = uiState.cardEditId
-    ? "Editar um cartão recalcula as compras ligadas a ele."
-    : "O fechamento define em qual mês cada compra entra.";
+  if (dom.cardSubmitButton && dom.cardCancelButton && dom.cardFormHint) {
+    dom.cardSubmitButton.textContent = uiState.cardEditId ? "Salvar alterações" : "Salvar cartão";
+    dom.cardCancelButton.classList.toggle("hidden", !uiState.cardEditId);
+    dom.cardFormHint.textContent = uiState.cardEditId
+      ? "Editar um cartão recalcula as compras ligadas a ele."
+      : "O fechamento define em qual mês cada compra entra.";
+  }
 }
 
 function renderPurchasePreview() {
+  if (!dom.purchasePreview || !dom.purchaseForm) {
+    return;
+  }
   const draft = getPurchaseDraftFromForm();
   if (!draft.date || draft.amount <= 0) {
     dom.purchasePreview.innerHTML = `
@@ -914,6 +984,9 @@ function renderPurchasePreview() {
 }
 
 function renderStats() {
+  if (!dom.statsGrid) {
+    return;
+  }
   const summary = getMonthlySummary(state.settings.selectedMonth);
   const creditTotal = sum(
     summary.charges
@@ -963,6 +1036,9 @@ function renderStats() {
 }
 
 function renderMonthCharges() {
+  if (!dom.monthSummaryText || !dom.monthCharges) {
+    return;
+  }
   const summary = getMonthlySummary(state.settings.selectedMonth);
   const filteredCharges = applySummaryFilters(summary.charges);
   const filteredTotal = sum(filteredCharges.map((charge) => charge.amount));
@@ -1018,6 +1094,9 @@ function renderMonthCharges() {
 }
 
 function renderCardSummaries() {
+  if (!dom.cardSummaries) {
+    return;
+  }
   const summary = getMonthlySummary(state.settings.selectedMonth);
   const cards = summary.byCard;
   if (!cards.length) {
@@ -1061,6 +1140,9 @@ function renderCardSummaries() {
 }
 
 function renderCardList() {
+  if (!dom.cardList) {
+    return;
+  }
   if (!state.cards.length) {
     dom.cardList.innerHTML = `
       <div class="empty-state">
@@ -1094,6 +1176,9 @@ function renderCardList() {
 }
 
 function renderInstallmentOverview() {
+  if (!dom.installmentOverview) {
+    return;
+  }
   const items = getActiveInstallments(state.settings.selectedMonth);
   if (!items.length) {
     dom.installmentOverview.innerHTML = `
@@ -1136,6 +1221,9 @@ function renderInstallmentOverview() {
 }
 
 function renderBudget() {
+  if (!dom.budgetSummary) {
+    return;
+  }
   const amount = state.settings.budgetAmount;
   const owner = state.settings.budgetOwner;
   const summary = getMonthlySummary(state.settings.selectedMonth);

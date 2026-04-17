@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cartões da Casa</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-orb background-orb-left"></div>
+    <div class="background-orb background-orb-right"></div>
+
+    <main class="page-shell">
+      <header class="hero hero-compact">
+        <div class="hero-copy">
+          <p class="eyebrow">Casa de THALES e CÁTIA</p>
+          <h1>Cartões</h1>
+          <div class="page-links">
+            <a class="link-chip" href="index.html">Lançamentos</a>
+            <a class="link-chip link-chip-current" href="cartoes.html">Cartões</a>
+            <a class="link-chip" href="orcamento.html">Orçamento</a>
+          </div>
+        </div>
+
+        <div class="hero-actions hero-actions-compact">
+          <p class="sync-note">
+            Cadastre os cartões com fechamento e vencimento para o app jogar cada compra no mês certo.
+          </p>
+        </div>
+      </header>
+
+      <section class="status-strip">
+        <div class="status-pill" id="statusBadge">Carregando painel...</div>
+        <div class="status-pill" id="syncStatus">Sincronização ainda não executada.</div>
+      </section>
+
+      <section class="workspace-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Cadastro</p>
+              <h2>Novo cartão</h2>
+            </div>
+          </div>
+
+          <form id="cardForm" class="entry-form compact-form">
+            <input name="entryId" type="hidden" />
+            <div class="form-grid form-grid-compact">
+              <label class="field field-full">
+                <span>Nome do cartão</span>
+                <input name="name" type="text" maxlength="50" required />
+              </label>
+
+              <label class="field field-short">
+                <span>Fechamento da fatura</span>
+                <input name="closingDay" type="number" min="1" max="31" step="1" required />
+              </label>
+
+              <label class="field field-short">
+                <span>Pagamento da fatura</span>
+                <input name="paymentDay" type="number" min="1" max="31" step="1" required />
+              </label>
+            </div>
+
+            <div class="form-actions split-actions">
+              <span id="cardFormHint" class="form-hint">
+                O fechamento define em qual mês cada compra entra.
+              </span>
+              <button
+                id="cardCancelButton"
+                class="button button-secondary hidden"
+                type="button"
+              >
+                Cancelar edição
+              </button>
+              <button id="cardSubmitButton" class="button" type="submit">
+                Salvar cartão
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Lista</p>
+              <h2>Cartões cadastrados</h2>
+            </div>
+          </div>
+          <div id="cardList" class="stack-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
