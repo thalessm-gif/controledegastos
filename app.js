@@ -599,7 +599,10 @@ function getFirstChargeMonth(purchase) {
   }
 
   const purchaseDay = Number.parseInt(purchase.date.slice(8, 10), 10);
-  return purchaseDay <= card.closingDay ? purchaseMonth : addMonths(purchaseMonth, 1);
+  const closingMonth =
+    purchaseDay <= card.closingDay ? purchaseMonth : addMonths(purchaseMonth, 1);
+
+  return card.paymentDay < card.closingDay ? addMonths(closingMonth, 1) : closingMonth;
 }
 
 function getCardDueDate(month, card) {
@@ -993,8 +996,8 @@ function renderPurchasePreview() {
   const purchaseDay = Number.parseInt(draft.date.slice(8, 10), 10);
   const billingHint =
     purchaseDay <= card.closingDay
-      ? `Como a compra foi lançada até o fechamento do dia ${card.closingDay}, ela cai na fatura de ${formatMonthLabel(firstChargeMonth)}.`
-      : `Como a compra passou do fechamento do dia ${card.closingDay}, ela só entra na fatura de ${formatMonthLabel(firstChargeMonth)}.`;
+      ? `Como a compra foi lançada até o fechamento do dia ${card.closingDay}, ela entra no ciclo com pagamento em ${formatMonthLabel(firstChargeMonth)}.`
+      : `Como a compra passou do fechamento do dia ${card.closingDay}, ela entra no próximo ciclo, com pagamento em ${formatMonthLabel(firstChargeMonth)}.`;
   dom.purchasePreview.innerHTML = `
     <strong>Prévia da cobrança</strong>
     <p>${escapeHtml(billingHint)}</p>
