@@ -1648,7 +1648,7 @@ async function syncWithGoogle(options = {}) {
     : 0;
   try {
     setSyncMessage(
-      options.automated
+        options.automated
         ? "Sincronizando automaticamente com o Google Sheets..."
         : "Sincronizando com Google Sheets...",
       false
@@ -1658,18 +1658,23 @@ async function syncWithGoogle(options = {}) {
     const remoteState = await fetchRemoteState(state.sync.scriptUrl);
     const merged = mergeStates(state, remoteState);
     const saved = await pushRemoteState(state.sync.scriptUrl, merged);
-    state = mergeStates(merged, saved);
-    setSyncMessage(
-      options.automated
+    const telegramWarning = getTelegramSyncWarning(saved.telegram);
+    state = mergeStates(merged, saved.state);
+    if (telegramWarning) {
+      setSyncMessage(telegramWarning, true);
+    } else {
+      setSyncMessage(
+        options.automated
         ? "Dados sincronizados automaticamente."
         : "Sincronização concluída com sucesso.",
-      true
-    );
+        true
+      );
+    }
     if (showSyncFeedback) {
-      showToast("Sincronizado.", {
+      showToast(telegramWarning ? "Telegram nao enviou." : "Sincronizado.", {
         toastId: syncToastId,
-        tone: "success",
-        duration: 1200,
+        tone: telegramWarning ? "error" : "success",
+        duration: telegramWarning ? 2600 : 1200,
       });
     }
     persistState();
@@ -1727,7 +1732,31 @@ async function pushRemoteState(scriptUrl, payload) {
   }
 
   const result = await response.json();
-  return normalizeState(result?.payload || result);
+  return {
+    state: normalizeState(result?.payload || result),
+    telegram: result?.telegram || null,
+  };
+}
+
+function getTelegramSyncWarning(telegram) {
+  if (!telegram || telegram.ok || telegram.skipped) {
+    return "";
+  }
+
+  if (telegram.reason === "missing_bot_token") {
+    return "Dados sincronizados, mas falta TELEGRAM_BOT_TOKEN no Apps Script.";
+  }
+  if (telegram.reason === "missing_chat_id") {
+    return "Dados sincronizados, mas falta TELEGRAM_CHAT_ID no Apps Script.";
+  }
+
+  const failedResult = Array.isArray(telegram.results)
+    ? telegram.results.find((result) => !result.ok)
+    : null;
+  const detail = cleanText(failedResult?.description || telegram.description);
+  return detail
+    ? `Dados sincronizados, mas o Telegram nao enviou: ${detail}`
+    : "Dados sincronizados, mas o Telegram nao enviou.";
 }
 
 function mergeStates(localState, remoteState) {
